@@ -15,3 +15,11 @@ Generated Files/
 AppPackages/
 BundleArtifacts/
 *.trx
+
+# Local AI tooling
+.codex/
+.claude/
+.cursor/
+.windsurf/
+.continue/
+.aider*
