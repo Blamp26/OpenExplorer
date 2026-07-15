@@ -38,6 +38,7 @@ name = "open-explorer-shell-host"
 version = "0.1.0"
 dependencies = [
  "open-explorer-protocol",
+ "windows-sys",
 ]
 
 [[package]]

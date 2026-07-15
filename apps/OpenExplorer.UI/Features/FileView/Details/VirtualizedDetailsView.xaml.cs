@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Input;
 using OpenExplorer.Application.Diagnostics;
+using OpenExplorer.Application.Icons;
 using OpenExplorer.Application.Selection;
 using OpenExplorer.Contracts;
 using OpenExplorer_UI.Features.Performance;
@@ -26,6 +27,11 @@ public sealed partial class VirtualizedDetailsView : UserControl
 
     private readonly HashSet<FrameworkElement> realizedRows = [];
     private ExplorerSelectionModel? selection;
+    private ExplorerIconCoordinator? iconCoordinator;
+    private ExplorerLocation? iconLocation;
+    private readonly List<ExplorerIconRequest> pendingIconRequests = [];
+    private bool iconFlushScheduled;
+    private long iconGeneration;
 
     public event Action<ExplorerItem>? DirectoryActivated;
 
@@ -41,6 +47,21 @@ public sealed partial class VirtualizedDetailsView : UserControl
         RefreshRealizedRows();
     }
 
+    public void SetIconProvider(ExplorerIconCoordinator coordinator)
+    {
+        ArgumentNullException.ThrowIfNull(coordinator);
+        iconCoordinator = coordinator;
+        iconGeneration = coordinator.Invalidate();
+    }
+
+    public void SetIconLocation(ExplorerLocation? location)
+    {
+        if (Equals(iconLocation, location)) return;
+        iconLocation = location;
+        iconGeneration = iconCoordinator?.Invalidate() ?? iconGeneration + 1;
+        pendingIconRequests.Clear();
+    }
+
     public void DetachSelection()
     {
         if (selection is null) return;
@@ -54,6 +75,8 @@ public sealed partial class VirtualizedDetailsView : UserControl
         double previousOffset = DetailsScrollViewer.VerticalOffset;
         Items = items;
         DetailsRepeater.ItemsSource = Items;
+        iconGeneration = iconCoordinator?.Invalidate() ?? iconGeneration + 1;
+        pendingIconRequests.Clear();
         Diagnostics.Reset();
         DispatcherQueue.TryEnqueue(() => RestoreViewport(previousOffset));
     }
@@ -63,6 +86,8 @@ public sealed partial class VirtualizedDetailsView : UserControl
         Items = null;
         DetailsRepeater.ItemsSource = null;
         realizedRows.Clear();
+        iconGeneration = iconCoordinator?.Invalidate() ?? iconGeneration + 1;
+        pendingIconRequests.Clear();
     }
 
     public void FocusView() => DetailsScrollViewer.Focus(FocusState.Programmatic);
@@ -174,6 +199,7 @@ public sealed partial class VirtualizedDetailsView : UserControl
         {
             realizedRows.Add(element);
             ApplyRowState(element);
+            if (element.DataContext is SnapshotFileItem item) QueueIcon(item, DetailsRepeater.GetElementIndex(element));
         }
     }
 
@@ -185,6 +211,39 @@ public sealed partial class VirtualizedDetailsView : UserControl
             realizedRows.Remove(element);
             element.ClearValue(FrameworkElement.TagProperty);
         }
+    }
+
+    private void QueueIcon(SnapshotFileItem item, int index)
+    {
+        if (iconCoordinator is null || iconLocation is null || index < 0) return;
+        pendingIconRequests.Add(new ExplorerIconRequest(item.ItemId, item.Name, item.SourceItem.Kind, iconLocation));
+        // A small look-ahead keeps fast scrolling warm without enumerating the directory.
+        if (Items is not null)
+        {
+            for (int i = index + 1; i <= index + 16 && i < Items.Count; i++)
+            {
+                SnapshotFileItem near = Items[i];
+                pendingIconRequests.Add(new ExplorerIconRequest(near.ItemId, near.Name, near.SourceItem.Kind, iconLocation));
+            }
+        }
+        if (iconFlushScheduled) return;
+        iconFlushScheduled = true;
+        DispatcherQueue.TryEnqueue(async () => await FlushIconsAsync());
+    }
+
+    private async Task FlushIconsAsync()
+    {
+        iconFlushScheduled = false;
+        if (iconCoordinator is null || iconLocation is null || pendingIconRequests.Count == 0) return;
+        ExplorerIconRequest[] requests = pendingIconRequests.DistinctBy(x => x.ItemId).Take(512).ToArray();
+        pendingIconRequests.Clear();
+        long generation = iconGeneration;
+        await iconCoordinator.RequestAsync(iconLocation, requests, generation, result =>
+        {
+            if (generation != iconGeneration || Items is null || !Items.TryGetIndexByItemId(result.ItemId, out _)) return;
+            foreach (FrameworkElement row in realizedRows)
+                if (row.DataContext is SnapshotFileItem item && item.ItemId == result.ItemId) item.SetIcon(result);
+        });
     }
 
     private void OnSelectionChanged(object? sender, EventArgs args) => RefreshRealizedRows();

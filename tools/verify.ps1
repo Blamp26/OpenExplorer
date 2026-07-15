@@ -51,6 +51,7 @@ if ($LASTEXITCODE -ne 0) { throw "Virtualization smoke test failed with exit cod
 if (-not ($virtualizationOutput -match 'Snapshot virtualization source: 100000 items, page 256, cache <= 1024')) {
     throw "Virtualization smoke test did not report the expected source summary. Output: $($virtualizationOutput -join ' | ')"
 }
+if ($virtualizationOutput -notcontains 'Icon smoke: batched placeholders, bounded cache, and stale row results passed') { throw "Icon virtualization smoke test did not report the expected result. Output: $($virtualizationOutput -join ' | ')" }
 $virtualizationOutput
 
 Write-Host '[8/13] navigation smoke test'
@@ -78,13 +79,23 @@ if ($LASTEXITCODE -ne 0) { throw "Selection smoke test failed with exit code $LA
 if ($selectionOutput -notcontains 'Selection model: transitions, inverted select-all, sorting preservation, keyboard lookup passed') { throw "Selection smoke test did not report the expected result. Output: $($selectionOutput -join ' | ')" }
 $selectionOutput
 
-Write-Host '[11/13] packaged launch smoke test'
+Write-Host '[11/15] Shell icon infrastructure smoke test'
+$shellIconProject = Join-Path $repoRoot 'tests\OpenExplorer.ShellInterop.SmokeTests\OpenExplorer.ShellInterop.SmokeTests.csproj'
+Invoke-Checked 'dotnet' @('build', $shellIconProject, '-c', 'Debug', '--no-restore')
+$shellIconDll = Join-Path $repoRoot 'tests\OpenExplorer.ShellInterop.SmokeTests\bin\Debug\net10.0-windows\OpenExplorer.ShellInterop.SmokeTests.dll'
+if (-not (Test-Path -LiteralPath $shellIconDll)) { throw "Shell icon smoke output was not found: $shellIconDll" }
+$shellIconOutput = & dotnet $shellIconDll
+if ($LASTEXITCODE -ne 0) { throw "Shell icon smoke test failed with exit code $LASTEXITCODE." }
+if ($shellIconOutput -notcontains 'Shell icon smoke: bounded cache, duplicate coalescing, 32px payload passed') { throw "Shell icon smoke test did not report the expected result. Output: $($shellIconOutput -join ' | ')" }
+$shellIconOutput
+
+Write-Host '[12/15] packaged launch smoke test'
 $runScript = Join-Path $PSScriptRoot 'run.ps1'
 & $runScript -Configuration Debug -SmokeTest
 if ($LASTEXITCODE -ne 0) { throw "Packaged launch smoke test failed with exit code $LASTEXITCODE." }
 
-Write-Host '[12/13] final WinUI solution build (Debug|x64)'
+Write-Host '[13/15] final WinUI solution build (Debug|x64)'
 $msBuild = 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe'
 Invoke-Checked $msBuild @('OpenExplorer.sln', '/m', '/p:Configuration=Debug', '/p:Platform=x64')
-Write-Host '[13/13] verification complete'
+Write-Host '[14/15] verification complete'
 Write-Host 'Verification completed.'

@@ -1,9 +1,10 @@
 using OpenExplorer.Application.Diagnostics;
 using OpenExplorer.Contracts;
+using OpenExplorer.Application.Icons;
 
-return RunSmokeTest();
+return await RunSmokeTestAsync();
 
-static int RunSmokeTest()
+static async Task<int> RunSmokeTestAsync()
 {
     try
     {
@@ -40,6 +41,9 @@ static int RunSmokeTest()
         source.Dispose();
         Assert(fake.DisposeCount == 1, "Snapshot disposal was not idempotent.");
 
+        await using var iconProvider = new DeterministicFakeIconProvider();
+        await VerifyIconsAsync(iconProvider);
+
         Console.WriteLine("Snapshot virtualization source: 100000 items, page 256, cache <= 1024");
         return 0;
     }
@@ -48,6 +52,24 @@ static int RunSmokeTest()
         Console.Error.WriteLine($"Snapshot virtualization smoke test failed: {exception.Message}");
         return 1;
     }
+}
+
+static async Task VerifyIconsAsync(DeterministicFakeIconProvider provider)
+{
+    await using var coordinator = new ExplorerIconCoordinator(provider);
+    var location = ExplorerLocation.File("C:\\Smoke");
+    long generation = coordinator.Invalidate();
+    var items = Enumerable.Range(1, 24).Select(i => new ExplorerIconRequest((ulong)i, $"file{i}.{(i % 2 == 0 ? "txt" : "pdf")}", ExplorerItemKind.File, location)).ToArray();
+    var applied = new List<ExplorerIconResult>();
+    await coordinator.RequestAsync(location, items, generation, applied.Add);
+    Assert(provider.BatchCount == 1 && provider.RequestCount == 2, "Icons were not requested as one coalesced batch.");
+    Assert(applied.Count == 24, "The icon batch did not apply every current identity.");
+    long staleGeneration = coordinator.Invalidate();
+    var stale = new List<ExplorerIconResult>();
+    await coordinator.RequestAsync(location, items, staleGeneration - 1, stale.Add);
+    Assert(stale.Count == 0, "A stale icon generation was applied.");
+    Assert(coordinator.CachedEntryCount <= 256, "The icon cache exceeded its bound.");
+    Console.WriteLine("Icon smoke: batched placeholders, bounded cache, and stale row results passed");
 }
 
 static void Assert(bool condition, string message)

@@ -1,46 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<UserControl
-    x:Class="OpenExplorer_UI.Features.FileView.Details.VirtualizedDetailsView"
+<UserControl x:Class="OpenExplorer_UI.Features.FileView.Details.VirtualizedDetailsView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:application="using:OpenExplorer.Application.Diagnostics"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls">
     <ScrollViewer x:Name="DetailsScrollViewer" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
-        <Grid MinWidth="760">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="34" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+        <Grid MinWidth="800">
+            <Grid.RowDefinitions><RowDefinition Height="34" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid Grid.Row="0" Padding="16,0" Background="#0A000000">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition MinWidth="300" Width="*" />
-                    <ColumnDefinition Width="180" />
-                    <ColumnDefinition Width="140" />
-                    <ColumnDefinition Width="110" />
-                </Grid.ColumnDefinitions>
-                <Button x:Name="NameHeaderButton" Grid.Column="0" HorizontalAlignment="Left" Click="OnSortHeaderClick" Tag="Name" Content="Name ↑" AutomationProperties.Name="Sort by Name" ToolTipService.ToolTip="Sort by Name" />
-                <Button x:Name="DateModifiedHeaderButton" Grid.Column="1" HorizontalAlignment="Left" Click="OnSortHeaderClick" Tag="DateModified" Content="Date modified" AutomationProperties.Name="Sort by Date modified" ToolTipService.ToolTip="Sort by Date modified" />
-                <Button x:Name="TypeHeaderButton" Grid.Column="2" HorizontalAlignment="Left" Click="OnSortHeaderClick" Tag="Type" Content="Type" AutomationProperties.Name="Sort by Type" ToolTipService.ToolTip="Sort by Type" />
-                <Button x:Name="SizeHeaderButton" Grid.Column="3" HorizontalAlignment="Right" Click="OnSortHeaderClick" Tag="Size" Content="Size" AutomationProperties.Name="Sort by Size" ToolTipService.ToolTip="Sort by Size" />
+                <Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition MinWidth="300" Width="*" /><ColumnDefinition Width="180" /><ColumnDefinition Width="140" /><ColumnDefinition Width="110" /></Grid.ColumnDefinitions>
+                <Button x:Name="NameHeaderButton" Grid.Column="1" HorizontalAlignment="Left" Click="OnSortHeaderClick" Tag="Name" Content="Name ↑" AutomationProperties.Name="Sort by Name" />
+                <Button x:Name="DateModifiedHeaderButton" Grid.Column="2" HorizontalAlignment="Left" Click="OnSortHeaderClick" Tag="DateModified" Content="Date modified" AutomationProperties.Name="Sort by Date modified" />
+                <Button x:Name="TypeHeaderButton" Grid.Column="3" HorizontalAlignment="Left" Click="OnSortHeaderClick" Tag="Type" Content="Type" AutomationProperties.Name="Sort by Type" />
+                <Button x:Name="SizeHeaderButton" Grid.Column="4" HorizontalAlignment="Right" Click="OnSortHeaderClick" Tag="Size" Content="Size" AutomationProperties.Name="Sort by Size" />
             </Grid>
             <controls:ItemsRepeater x:Name="DetailsRepeater" Grid.Row="1">
-                <controls:ItemsRepeater.Layout>
-                    <controls:StackLayout Orientation="Vertical" />
-                </controls:ItemsRepeater.Layout>
+                <controls:ItemsRepeater.Layout><controls:StackLayout Orientation="Vertical" /></controls:ItemsRepeater.Layout>
                 <controls:ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="application:SnapshotFileItem">
                         <Button Height="32" Padding="16,0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Tapped="OnRowTapped" KeyDown="OnRowKeyDown" DoubleTapped="OnRowDoubleTapped">
                             <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition MinWidth="300" Width="*" />
-                                <ColumnDefinition Width="180" />
-                                <ColumnDefinition Width="140" />
-                                <ColumnDefinition Width="110" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="{x:Bind Name, Mode=OneTime}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{x:Bind DateModifiedText, Mode=OneTime}" />
-                            <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{x:Bind TypeText, Mode=OneTime}" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="{x:Bind SizeText, Mode=OneTime}" TextAlignment="Right" />
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition MinWidth="300" Width="*" /><ColumnDefinition Width="180" /><ColumnDefinition Width="140" /><ColumnDefinition Width="110" /></Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="{x:Bind IconGlyph, Mode=OneWay}" FontSize="17" HorizontalAlignment="Center" />
+                                <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{x:Bind Name, Mode=OneTime}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{x:Bind DateModifiedText, Mode=OneTime}" />
+                                <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="{x:Bind TypeText, Mode=OneTime}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="{x:Bind SizeText, Mode=OneTime}" TextAlignment="Right" />
                             </Grid>
                         </Button>
                     </DataTemplate>

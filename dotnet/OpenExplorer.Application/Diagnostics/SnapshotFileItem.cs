@@ -1,9 +1,11 @@
 using System.Globalization;
 using OpenExplorer.Contracts;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
 namespace OpenExplorer.Application.Diagnostics;
 
-public sealed class SnapshotFileItem
+public sealed class SnapshotFileItem : INotifyPropertyChanged
 {
     internal SnapshotFileItem(ExplorerItem item)
     {
@@ -29,6 +31,19 @@ public sealed class SnapshotFileItem
     public string SizeText { get; }
 
     public bool IsDirectory { get; }
+
+    public string IconGlyph { get; private set; } = "□";
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public void SetIcon(OpenExplorer.Application.Icons.ExplorerIconResult result)
+    {
+        if (result.ItemId != ItemId) return;
+        string glyph = result.Kind is OpenExplorer.Application.Icons.ExplorerIconKind.GenericFolder or OpenExplorer.Application.Icons.ExplorerIconKind.ShellFolder ? "📁" : "📄";
+        if (IconGlyph == glyph) return;
+        IconGlyph = glyph;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IconGlyph)));
+    }
 
     private static string GetTypeText(string name)
     {

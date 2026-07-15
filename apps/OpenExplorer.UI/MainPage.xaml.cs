@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml.Controls;
 using OpenExplorer.Application;
 using OpenExplorer.Application.Navigation;
+using OpenExplorer.Application.Icons;
 using OpenExplorer.Contracts;
 
 namespace OpenExplorer_UI;
@@ -23,5 +24,7 @@ public sealed partial class MainPage : Page
     }
 
     public void SetNavigationController(ExplorerNavigationController controller) => FileView.SetNavigationController(controller);
+
+    public void SetIconCoordinator(ExplorerIconCoordinator coordinator) => FileView.SetIconCoordinator(coordinator);
 
 }

@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Input;
 using OpenExplorer.Application;
 using OpenExplorer.Application.Navigation;
+using OpenExplorer.Application.Icons;
 using OpenExplorer.Contracts;
 using OpenExplorer_UI.Features.Performance;
 using Windows.System;
@@ -59,6 +60,8 @@ public sealed partial class FileViewPage : Page
         DetailsView.SetSelection(navigationController.Selection);
         UpdateNavigationState();
     }
+
+    public void SetIconCoordinator(ExplorerIconCoordinator coordinator) => DetailsView.SetIconProvider(coordinator);
 
     private void OnLoaded(object sender, RoutedEventArgs args)
     {
@@ -234,6 +237,7 @@ public sealed partial class FileViewPage : Page
         NavigationErrorText.Text = navigationController.ErrorMessage ?? string.Empty;
         if (navigationController.CurrentLocation is { } location)
         {
+            DetailsView.SetIconLocation(location);
             if (!addressEditMode) AddressTextBox.Text = location.Identifier;
             if (!addressEditMode) RenderBreadcrumbs(location);
         }
