@@ -1,11 +1,11 @@
 <Project>
   <PropertyGroup>
-    <FastExplorerNativeDll>$(MSBuildThisFileDirectory)artifacts\native\win-x64\$(Configuration)\fast_explorer_ffi.dll</FastExplorerNativeDll>
-    <FastExplorerNativeOutput>$(TargetDir)fast_explorer_ffi.dll</FastExplorerNativeOutput>
+    <OpenExplorerNativeDll>$(MSBuildThisFileDirectory)artifacts\native\win-x64\$(Configuration)\open_explorer_ffi.dll</OpenExplorerNativeDll>
+    <OpenExplorerNativeOutput>$(TargetDir)open_explorer_ffi.dll</OpenExplorerNativeOutput>
   </PropertyGroup>
 
-  <Target Name="FastExplorerCopyNative" BeforeTargets="CopyFilesToOutputDirectory" Condition="'$(FastExplorerNeedsNative)' == 'true'">
-    <Error Condition="!Exists('$(FastExplorerNativeDll)')" Text="FastExplorer native DLL was not found at $(FastExplorerNativeDll). Build the Rust workspace first." />
-    <Copy SourceFiles="$(FastExplorerNativeDll)" DestinationFiles="$(FastExplorerNativeOutput)" SkipUnchangedFiles="true" />
+  <Target Name="OpenExplorerCopyNative" BeforeTargets="CopyFilesToOutputDirectory" Condition="'$(OpenExplorerNeedsNative)' == 'true'">
+    <Error Condition="!Exists('$(OpenExplorerNativeDll)')" Text="OpenExplorer native DLL was not found at $(OpenExplorerNativeDll). Build the Rust workspace first." />
+    <Copy SourceFiles="$(OpenExplorerNativeDll)" DestinationFiles="$(OpenExplorerNativeOutput)" SkipUnchangedFiles="true" />
   </Target>
 </Project>

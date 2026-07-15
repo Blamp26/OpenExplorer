@@ -1,4 +1,4 @@
-# FastExplorer architecture
+# OpenExplorer architecture
 
 ```text
 WinUI

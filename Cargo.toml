@@ -1,12 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-    "rust/explorer-domain",
-    "rust/explorer-engine",
-    "rust/explorer-ffi",
-    "rust/explorer-protocol",
-    "apps/FastExplorer.Indexer",
-    "apps/FastExplorer.ShellHost",
+    "rust/open-explorer-domain",
+    "rust/open-explorer-engine",
+    "rust/open-explorer-ffi",
+    "rust/open-explorer-protocol",
+    "apps/OpenExplorer.Indexer",
+    "apps/OpenExplorer.ShellHost",
 ]
 
 [workspace.package]

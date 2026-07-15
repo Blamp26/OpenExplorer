@@ -3,38 +3,38 @@
 version = 4
 
 [[package]]
-name = "fast-explorer-domain"
+name = "open-explorer-domain"
 version = "0.1.0"
 
 [[package]]
-name = "fast-explorer-engine"
+name = "open-explorer-engine"
 version = "0.1.0"
 dependencies = [
- "fast-explorer-domain",
+ "open-explorer-domain",
 ]
 
 [[package]]
-name = "fast-explorer-ffi"
+name = "open-explorer-ffi"
 version = "0.1.0"
 dependencies = [
- "fast-explorer-domain",
- "fast-explorer-engine",
+ "open-explorer-domain",
+ "open-explorer-engine",
 ]
 
 [[package]]
-name = "fast-explorer-indexer"
+name = "open-explorer-indexer"
 version = "0.1.0"
 dependencies = [
- "fast-explorer-protocol",
+ "open-explorer-protocol",
 ]
 
 [[package]]
-name = "fast-explorer-protocol"
+name = "open-explorer-protocol"
 version = "0.1.0"
 
 [[package]]
-name = "fast-explorer-shell-host"
+name = "open-explorer-shell-host"
 version = "0.1.0"
 dependencies = [
- "fast-explorer-protocol",
+ "open-explorer-protocol",
 ]

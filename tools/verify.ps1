@@ -26,7 +26,7 @@ Write-Host '[4/6] build.ps1 Debug'
 if ($LASTEXITCODE -ne 0) { throw "build.ps1 failed with exit code $LASTEXITCODE." }
 
 Write-Host '[5/6] native Interop smoke test'
-$smokeDll = Join-Path $repoRoot 'tests\FastExplorer.Interop.SmokeTests\bin\Debug\net10.0\FastExplorer.Interop.SmokeTests.dll'
+$smokeDll = Join-Path $repoRoot 'tests\OpenExplorer.Interop.SmokeTests\bin\Debug\net10.0\OpenExplorer.Interop.SmokeTests.dll'
 if (-not (Test-Path -LiteralPath $smokeDll)) { throw "Smoke test output was not found: $smokeDll" }
 $smokeOutput = & dotnet $smokeDll
 if ($LASTEXITCODE -ne 0) { throw "Interop smoke test failed with exit code $LASTEXITCODE." }
@@ -37,5 +37,5 @@ $smokeOutput
 
 Write-Host '[6/6] final WinUI solution build (Debug|x64)'
 $msBuild = 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe'
-Invoke-Checked $msBuild @('FastExplorer.sln', '/m', '/p:Configuration=Debug', '/p:Platform=x64')
+Invoke-Checked $msBuild @('OpenExplorer.sln', '/m', '/p:Configuration=Debug', '/p:Platform=x64')
 Write-Host 'Verification completed.'

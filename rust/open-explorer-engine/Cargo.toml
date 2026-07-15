@@ -1,0 +1,7 @@
+[package]
+name = "open-explorer-engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+open-explorer-domain = { path = "../open-explorer-domain" }

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "OpenExplorer.UI (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "OpenExplorer.UI (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}

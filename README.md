@@ -1,6 +1,6 @@
-# FastExplorer
+# OpenExplorer
 
-FastExplorer is a Windows-only file manager foundation built around WinUI 3 and a Rust native engine. The current bootstrap proves the complete managed-to-native path: the packaged WinUI application composes a C# view model over `FastExplorer.Interop`, which loads a stable Rust C ABI and displays native API version `1`.
+OpenExplorer is a Windows-only file manager foundation built around WinUI 3 and a Rust native engine. The current bootstrap proves the complete managed-to-native path: the packaged WinUI application composes a C# view model over `OpenExplorer.Interop`, which loads a stable Rust C ABI and displays native API version `1`.
 
 ## Stack and status
 
@@ -21,16 +21,16 @@ Windows, PowerShell, .NET SDK 10.0.301 or a compatible latest patch, Visual Stud
 ## Build and verify
 
 ```powershell
-Set-Location 'D:\source\repos\explorerv2'
+Set-Location 'D:\source\repos\OpenExplorer'
 .\tools\build.ps1 -Configuration Debug
 ```
 
 ```powershell
-Set-Location 'D:\source\repos\explorerv2'
+Set-Location 'D:\source\repos\OpenExplorer'
 .\tools\verify.ps1
 ```
 
-The build compiles the Rust workspace, copies the native DLL into `artifacts`, and builds `FastExplorer.sln` for `Debug|x64`. It does not launch the application.
+The build compiles the Rust workspace, copies the native DLL into `artifacts`, and builds `OpenExplorer.sln` for `Debug|x64`. It does not launch the application.
 
 ## Deferred work
 

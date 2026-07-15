@@ -11,9 +11,9 @@ Set-Location $repoRoot
 $target = 'x86_64-pc-windows-msvc'
 $profileDirectory = if ($Configuration -eq 'Release') { 'release' } else { 'debug' }
 $msBuild = 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe'
-$nativeSource = Join-Path $repoRoot "target\$target\$profileDirectory\fast_explorer_ffi.dll"
+$nativeSource = Join-Path $repoRoot "target\$target\$profileDirectory\open_explorer_ffi.dll"
 $nativeDirectory = Join-Path $repoRoot "artifacts\native\win-x64\$Configuration"
-$nativeDestination = Join-Path $nativeDirectory 'fast_explorer_ffi.dll'
+$nativeDestination = Join-Path $nativeDirectory 'open_explorer_ffi.dll'
 
 function Invoke-Checked([string]$FilePath, [string[]]$Arguments) {
     & $FilePath @Arguments
@@ -39,5 +39,5 @@ Write-Host '[3/4] Validate MSBuild'
 if (-not (Test-Path -LiteralPath $msBuild)) { throw "MSBuild was not found: $msBuild" }
 
 Write-Host '[4/4] Managed solution (x64)'
-Invoke-Checked $msBuild @('FastExplorer.sln', '/restore', '/m', "/p:Configuration=$Configuration", '/p:Platform=x64')
+Invoke-Checked $msBuild @('OpenExplorer.sln', '/restore', '/m', "/p:Configuration=$Configuration", '/p:Platform=x64')
 Write-Host "Build completed: $Configuration|x64"

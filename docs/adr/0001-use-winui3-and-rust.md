@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-FastExplorer needs a native Windows UI and a platform-independent engine boundary.
+OpenExplorer needs a native Windows UI and a platform-independent engine boundary.
 
 ## Decision
 Use WinUI 3 for the packaged desktop UI and Rust for the engine and native ABI.
