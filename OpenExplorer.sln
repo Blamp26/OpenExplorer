@@ -1,4 +1,4 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -20,6 +20,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenExplorer.Interop.SmokeTests", "tests\OpenExplorer.Interop.SmokeTests\OpenExplorer.Interop.SmokeTests.csproj", "{2E411EB3-8A9C-4199-8C2E-0B1A8CBD834C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenExplorer.Virtualization.SmokeTests", "tests\OpenExplorer.Virtualization.SmokeTests\OpenExplorer.Virtualization.SmokeTests.csproj", "{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -103,6 +105,18 @@ Global
 		{2E411EB3-8A9C-4199-8C2E-0B1A8CBD834C}.Release|x64.Build.0 = Release|Any CPU
 		{2E411EB3-8A9C-4199-8C2E-0B1A8CBD834C}.Release|x86.ActiveCfg = Release|Any CPU
 		{2E411EB3-8A9C-4199-8C2E-0B1A8CBD834C}.Release|x86.Build.0 = Release|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Debug|x64.Build.0 = Debug|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Debug|x86.Build.0 = Debug|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Release|x64.ActiveCfg = Release|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Release|x64.Build.0 = Release|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Release|x86.ActiveCfg = Release|Any CPU
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -114,5 +128,6 @@ Global
 		{A807710B-6DE6-4B2F-B6FB-2948DAE26499} = {71E6E750-85FD-B5BC-4321-E01377EC6231}
 		{78A4538A-DAE3-4DC1-96E4-420A899375FF} = {71E6E750-85FD-B5BC-4321-E01377EC6231}
 		{2E411EB3-8A9C-4199-8C2E-0B1A8CBD834C} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

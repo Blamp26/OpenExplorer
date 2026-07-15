@@ -1,5 +1,5 @@
-using OpenExplorer.Application;
 using Microsoft.UI.Xaml.Controls;
+using OpenExplorer.Application;
 
 namespace OpenExplorer_UI;
 
@@ -12,12 +12,11 @@ public sealed partial class MainPage : Page
 
     public void SetViewModel(MainViewModel viewModel)
     {
-        TitleText.Text = viewModel.Title;
-        VersionText.Text = viewModel.NativeApiVersionText;
+        FileView.SetViewModel(viewModel);
     }
 
     public void SetInitializationError(string message)
     {
-        VersionText.Text = $"Native initialization error: {message}";
+        FileView.SetInitializationError(message);
     }
 }

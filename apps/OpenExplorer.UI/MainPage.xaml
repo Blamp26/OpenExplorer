@@ -2,13 +2,7 @@
 <Page
     x:Class="OpenExplorer_UI.MainPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid Padding="32" RowSpacing="8">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-        <TextBlock x:Name="TitleText" FontSize="28" FontWeight="SemiBold" Text="OpenExplorer" />
-        <TextBlock x:Name="VersionText" Grid.Row="1" FontSize="16" Text="Initializing native engine..." />
-    </Grid>
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:fileView="using:OpenExplorer_UI.Features.FileView">
+    <fileView:FileViewPage x:Name="FileView" />
 </Page>
