@@ -20,6 +20,88 @@ public sealed class ExplorerSelectionModel : IDisposable
     public ulong? AnchorItemId { get { ThrowIfDisposed(); return anchorItemId; } }
     public ulong? FocusedItemId { get { ThrowIfDisposed(); return focusedItemId; } }
 
+    /// <summary>Returns the recorded selection state without enumerating a snapshot.</summary>
+    public ExplorerSelectionState CaptureState()
+    {
+        ThrowIfDisposed();
+        return new ExplorerSelectionState(
+            allSelected,
+            selectedIds.ToArray(),
+            deselectedAllIds.ToArray(),
+            anchorItemId,
+            focusedItemId,
+            logicalItemCount);
+    }
+
+    /// <summary>
+    /// Returns only explicitly recorded selected IDs. An inverted Select All is
+    /// intentionally not expanded because doing so would require a directory scan.
+    /// </summary>
+    public bool TryGetExplicitSelectedIds(out IReadOnlyList<ulong> itemIds)
+    {
+        ThrowIfDisposed();
+        if (allSelected)
+        {
+            itemIds = Array.Empty<ulong>();
+            return false;
+        }
+
+        itemIds = selectedIds.ToArray();
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves explicit selection targets through the snapshot's stable-ID
+    /// lookup. This is bounded by the recorded selection and never scans pages.
+    /// Inverted Select All is deliberately rejected because expanding it would
+    /// materialize the directory.
+    /// </summary>
+    public bool TryGetExplicitSelectedItems(IExplorerSnapshot snapshot, out IReadOnlyList<ExplorerItem> items)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (!TryGetExplicitSelectedIds(out IReadOnlyList<ulong> ids))
+        {
+            items = Array.Empty<ExplorerItem>();
+            return false;
+        }
+
+        var resolved = new List<ExplorerItem>(ids.Count);
+        foreach (ulong itemId in ids)
+        {
+            if (!snapshot.TryGetIndexByItemId(itemId, out ulong index)) continue;
+            ExplorerItemBatch batch = snapshot.GetRange(index, 1);
+            if (batch.Items.Count == 1 && batch.Items[0].ItemId == itemId)
+            {
+                resolved.Add(batch.Items[0]);
+            }
+        }
+
+        items = resolved;
+        return true;
+    }
+
+    /// <summary>Returns an explicitly selected item by stable ID using one native lookup.</summary>
+    public bool TrySelectItem(IExplorerSnapshot snapshot, ulong itemId)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (!snapshot.TryGetIndexByItemId(itemId, out ulong index)) return false;
+        ExplorerItemBatch batch = snapshot.GetRange(index, 1);
+        if (batch.Items.Count != 1 || batch.Items[0].ItemId != itemId) return false;
+        SelectSingle(batch.Items[0]);
+        return true;
+    }
+
+    public bool TrySelectItem(SnapshotFileItemList items, ulong itemId)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(items);
+        if (!items.TryGetIndexByItemId(itemId, out ulong index) || index > int.MaxValue) return false;
+        SelectSingle(items.GetSourceItem(checked((int)index)));
+        return true;
+    }
+
     public void SetLogicalItemCount(ulong count)
     {
         ThrowIfDisposed();
@@ -217,6 +299,14 @@ public sealed class ExplorerSelectionModel : IDisposable
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 }
+
+public sealed record ExplorerSelectionState(
+    bool IsAllSelected,
+    IReadOnlyList<ulong> SelectedIds,
+    IReadOnlyList<ulong> DeselectedAllIds,
+    ulong? AnchorItemId,
+    ulong? FocusedItemId,
+    ulong LogicalItemCount);
 
 public enum SelectionMove
 {

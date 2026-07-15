@@ -53,7 +53,15 @@ public sealed class ExplorerNavigationController : IDisposable
         }
     }
     public bool IsBusy { get { ThrowIfDisposed(); return isBusy; } }
+    public long Generation { get { ThrowIfDisposed(); return generation; } }
     public string? ErrorMessage { get { ThrowIfDisposed(); return errorMessage; } }
+
+    public bool IsCurrentLocation(ExplorerLocation location)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(location);
+        return IsSameLocation(currentLocation, location);
+    }
     public IReadOnlyList<ExplorerBreadcrumb> CurrentBreadcrumbs
     {
         get

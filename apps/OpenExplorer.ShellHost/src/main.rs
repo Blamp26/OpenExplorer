@@ -1,6 +1,7 @@
 //! A deliberately small, crash-isolated Windows Shell icon worker.
 use open_explorer_protocol::{
-    decode_frame, frame, IconResponse, IconStatus, Message, PROTOCOL_VERSION,
+    decode_frame, frame, IconResponse, IconStatus, Message, MutationResponse, MutationStatus,
+    PROTOCOL_VERSION,
 };
 use std::io::{Read, Write};
 
@@ -58,7 +59,25 @@ fn serve<S: Read + Write>(mut stream: S) -> std::io::Result<()> {
                     .collect(),
             ),
             Ok(Message::Shutdown) => return Ok(()),
-            Ok(Message::IconBatchResponse(_)) | Err(_) => return Ok(()),
+            Ok(Message::MutationRequest(request)) => {
+                #[cfg(windows)]
+                {
+                    Message::MutationResponse(windows_host::mutate(&request))
+                }
+                #[cfg(not(windows))]
+                {
+                    Message::MutationResponse(MutationResponse {
+                        request_id: request.request_id,
+                        status: MutationStatus::Failed,
+                        created_name: None,
+                        created_item_id: None,
+                        failures: vec![],
+                    })
+                }
+            }
+            Ok(Message::IconBatchResponse(_)) | Ok(Message::MutationResponse(_)) | Err(_) => {
+                return Ok(())
+            }
         };
         let output = frame(&response).map_err(|_| {
             std::io::Error::new(std::io::ErrorKind::InvalidData, "response too large")
@@ -91,7 +110,10 @@ mod windows_host {
             ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_BYTE,
             PIPE_TYPE_BYTE, PIPE_WAIT,
         },
-        UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON},
+        UI::Shell::{
+            SHFileOperationW, SHGetFileInfoW, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_SILENT,
+            FO_DELETE, SHFILEINFOW, SHFILEOPSTRUCTW, SHGFI_ICON,
+        },
     };
 
     const PIPE_PREFIX: &str = r"\\.\pipe\openexplorer-shell-";
@@ -219,6 +241,289 @@ mod windows_host {
             },
             pixels_bgra: pixels,
         }
+    }
+
+    pub fn mutate(request: &open_explorer_protocol::MutationRequest) -> MutationResponse {
+        use open_explorer_protocol::{MutationFailure, MutationOperation};
+        let failure =
+            |item_id: Option<u64>, name: Option<String>, message: String| MutationFailure {
+                item_id,
+                name,
+                message,
+            };
+        match request.operation {
+            MutationOperation::Rename => {
+                let Some(item) = request.items.first() else {
+                    return MutationResponse {
+                        request_id: request.request_id,
+                        status: MutationStatus::Failed,
+                        created_name: None,
+                        created_item_id: None,
+                        failures: vec![failure(None, None, "missing source item".into())],
+                    };
+                };
+                let Some(name) = request.desired_name.as_ref() else {
+                    return MutationResponse {
+                        request_id: request.request_id,
+                        status: MutationStatus::Failed,
+                        created_name: None,
+                        created_item_id: None,
+                        failures: vec![failure(
+                            Some(item.item_id),
+                            None,
+                            "missing destination name".into(),
+                        )],
+                    };
+                };
+                if !valid_windows_name(name) {
+                    return MutationResponse {
+                        request_id: request.request_id,
+                        status: MutationStatus::Failed,
+                        created_name: None,
+                        created_item_id: None,
+                        failures: vec![failure(
+                            Some(item.item_id),
+                            Some(name.clone()),
+                            "invalid Windows name".into(),
+                        )],
+                    };
+                }
+                let original_name = std::path::Path::new(&item.path)
+                    .file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or_default();
+                if original_name.eq_ignore_ascii_case(name) {
+                    return MutationResponse {
+                        request_id: request.request_id,
+                        status: MutationStatus::Failed,
+                        created_name: None,
+                        created_item_id: None,
+                        failures: vec![failure(
+                            Some(item.item_id),
+                            Some(name.clone()),
+                            "the name is unchanged".into(),
+                        )],
+                    };
+                }
+                let source = wide_path(&item.path);
+                let mut destination = std::path::PathBuf::from(&item.path);
+                destination.set_file_name(name);
+                let destination = wide_path(&destination.to_string_lossy());
+                let ok = unsafe {
+                    windows_sys::Win32::Storage::FileSystem::MoveFileExW(
+                        source.as_ptr(),
+                        destination.as_ptr(),
+                        0,
+                    )
+                } != 0;
+                if ok {
+                    MutationResponse {
+                        request_id: request.request_id,
+                        status: MutationStatus::Succeeded,
+                        created_name: None,
+                        created_item_id: None,
+                        failures: vec![],
+                    }
+                } else {
+                    MutationResponse {
+                        request_id: request.request_id,
+                        status: MutationStatus::Failed,
+                        created_name: None,
+                        created_item_id: None,
+                        failures: vec![failure(
+                            Some(item.item_id),
+                            Some(name.clone()),
+                            io::Error::last_os_error().to_string(),
+                        )],
+                    }
+                }
+            }
+            MutationOperation::CreateFolder => create_folder(request, failure),
+            MutationOperation::RecycleBinDelete => recycle_bin_delete(request, failure),
+        }
+    }
+
+    fn create_folder<F>(
+        request: &open_explorer_protocol::MutationRequest,
+        failure: F,
+    ) -> MutationResponse
+    where
+        F: Fn(Option<u64>, Option<String>, String) -> open_explorer_protocol::MutationFailure,
+    {
+        let base = request.desired_name.as_deref().unwrap_or("New folder");
+        if !valid_windows_name(base) {
+            return MutationResponse {
+                request_id: request.request_id,
+                status: MutationStatus::Failed,
+                created_name: None,
+                created_item_id: None,
+                failures: vec![failure(
+                    None,
+                    Some(base.to_string()),
+                    "invalid Windows name".into(),
+                )],
+            };
+        }
+        for index in 1..=10_000u32 {
+            let name = if index == 1 {
+                base.to_string()
+            } else {
+                format!("{base} ({index})")
+            };
+            let mut path = std::path::PathBuf::from(&request.location);
+            path.push(&name);
+            let wide = wide_path(&path.to_string_lossy());
+            let created = unsafe {
+                windows_sys::Win32::Storage::FileSystem::CreateDirectoryW(
+                    wide.as_ptr(),
+                    std::ptr::null(),
+                )
+            } != 0;
+            if created {
+                return MutationResponse {
+                    request_id: request.request_id,
+                    status: MutationStatus::Succeeded,
+                    created_name: Some(name),
+                    created_item_id: stable_item_id(&path),
+                    failures: vec![],
+                };
+            }
+            let error = io::Error::last_os_error();
+            if error.raw_os_error() != Some(80) && error.raw_os_error() != Some(183) {
+                return MutationResponse {
+                    request_id: request.request_id,
+                    status: MutationStatus::Failed,
+                    created_name: None,
+                    created_item_id: None,
+                    failures: vec![failure(None, Some(name), error.to_string())],
+                };
+            }
+        }
+        MutationResponse {
+            request_id: request.request_id,
+            status: MutationStatus::Failed,
+            created_name: None,
+            created_item_id: None,
+            failures: vec![failure(
+                None,
+                None,
+                "could not find a unique folder name".into(),
+            )],
+        }
+    }
+
+    fn recycle_bin_delete<F>(
+        request: &open_explorer_protocol::MutationRequest,
+        failure: F,
+    ) -> MutationResponse
+    where
+        F: Fn(Option<u64>, Option<String>, String) -> open_explorer_protocol::MutationFailure,
+    {
+        let mut failures = Vec::new();
+        for item in &request.items {
+            let mut path = wide_path(&item.path);
+            path.push(0);
+            let mut operation = SHFILEOPSTRUCTW {
+                hwnd: std::ptr::null_mut(),
+                wFunc: FO_DELETE,
+                pFrom: path.as_ptr(),
+                pTo: std::ptr::null(),
+                fFlags: (FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT) as u16,
+                fAnyOperationsAborted: 0,
+                hNameMappings: std::ptr::null_mut(),
+                lpszProgressTitle: std::ptr::null(),
+            };
+            let result = unsafe { SHFileOperationW(&mut operation) };
+            if result != 0 || operation.fAnyOperationsAborted != 0 {
+                failures.push(failure(
+                    Some(item.item_id),
+                    Some(item.path.clone()),
+                    if operation.fAnyOperationsAborted != 0 {
+                        "cancelled".into()
+                    } else {
+                        format!("Shell error {result}")
+                    },
+                ));
+            }
+        }
+        let status = if failures.is_empty() {
+            MutationStatus::Succeeded
+        } else if failures.len() == request.items.len() {
+            MutationStatus::Failed
+        } else {
+            MutationStatus::Partial
+        };
+        MutationResponse {
+            request_id: request.request_id,
+            status,
+            created_name: None,
+            created_item_id: None,
+            failures,
+        }
+    }
+
+    fn valid_windows_name(name: &str) -> bool {
+        if name.is_empty()
+            || name == "."
+            || name == ".."
+            || name.ends_with([' ', '.'])
+            || name.contains('\0')
+        {
+            return false;
+        }
+        if name
+            .chars()
+            .any(|c| matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'))
+        {
+            return false;
+        }
+        let stem = name.split('.').next().unwrap_or("").to_ascii_uppercase();
+        if matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL") {
+            return false;
+        }
+        if stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem.as_bytes()[3].is_ascii_digit()
+        {
+            return false;
+        }
+        true
+    }
+
+    fn stable_item_id(path: &std::path::Path) -> Option<u64> {
+        use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+        use windows_sys::Win32::Storage::FileSystem::{
+            CreateFileW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+            FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+            OPEN_EXISTING,
+        };
+        let wide = wide_path(&path.to_string_lossy());
+        let handle = unsafe {
+            CreateFileW(
+                wide.as_ptr(),
+                0,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                std::ptr::null(),
+                OPEN_EXISTING,
+                FILE_FLAG_BACKUP_SEMANTICS,
+                std::ptr::null_mut(),
+            )
+        };
+        if handle == INVALID_HANDLE_VALUE {
+            return None;
+        }
+        let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+        let ok = unsafe { GetFileInformationByHandle(handle, &mut info) } != 0;
+        unsafe { CloseHandle(handle) };
+        if !ok || info.dwVolumeSerialNumber == 0 {
+            return None;
+        }
+        let id = (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow);
+        (id != 0).then_some(id)
+    }
+
+    fn wide_path(path: &str) -> Vec<u16> {
+        OsStr::new(path).encode_wide().chain(Some(0)).collect()
     }
 
     fn cache_key(request: &open_explorer_protocol::IconRequest) -> String {

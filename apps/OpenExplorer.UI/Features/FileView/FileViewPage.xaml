@@ -31,7 +31,11 @@
             <Button x:Name="ForwardButton" Content="Forward" Click="OnForwardClick" AutomationProperties.Name="Forward" ToolTipService.ToolTip="Forward" />
             <Button x:Name="UpButton" Content="Up" Click="OnUpClick" AutomationProperties.Name="Up" ToolTipService.ToolTip="Up" />
             <Button x:Name="RefreshButton" Content="Refresh" Click="OnRefreshClick" AutomationProperties.Name="Refresh" ToolTipService.ToolTip="Refresh (F5)" />
+            <Button x:Name="RenameButton" Content="Rename" Click="OnRenameClick" AutomationProperties.Name="Rename" ToolTipService.ToolTip="Rename (F2)" />
+            <Button x:Name="NewFolderButton" Content="New folder" Click="OnNewFolderClick" AutomationProperties.Name="New folder" ToolTipService.ToolTip="New folder (Ctrl+Shift+N)" />
+            <Button x:Name="DeleteButton" Content="Delete" Click="OnDeleteClick" AutomationProperties.Name="Delete" ToolTipService.ToolTip="Move to Recycle Bin (Delete)" />
             <ProgressRing x:Name="NavigationProgress" Width="18" Height="18" IsActive="False" Visibility="Collapsed" />
+            <TextBlock x:Name="OperationStatusText" VerticalAlignment="Center" Foreground="#C42B1C" TextTrimming="CharacterEllipsis" />
             <CheckBox x:Name="FoldersFirstCheckBox" Content="Folders first" IsChecked="True" Checked="OnFoldersFirstChanged" Unchecked="OnFoldersFirstChanged" AutomationProperties.Name="Folders first" ToolTipService.ToolTip="Keep folders before files" />
         </StackPanel>
 

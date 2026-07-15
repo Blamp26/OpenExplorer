@@ -79,6 +79,16 @@ if ($LASTEXITCODE -ne 0) { throw "Selection smoke test failed with exit code $LA
 if ($selectionOutput -notcontains 'Selection model: transitions, inverted select-all, sorting preservation, keyboard lookup passed') { throw "Selection smoke test did not report the expected result. Output: $($selectionOutput -join ' | ')" }
 $selectionOutput
 
+Write-Host '[11/15] basic file operations smoke test'
+$operationProject = Join-Path $repoRoot 'tests\OpenExplorer.Operations.SmokeTests\OpenExplorer.Operations.SmokeTests.csproj'
+Invoke-Checked 'dotnet' @('build', $operationProject, '-c', 'Debug', '--no-restore')
+$operationDll = Join-Path $repoRoot 'tests\OpenExplorer.Operations.SmokeTests\bin\Debug\net10.0\OpenExplorer.Operations.SmokeTests.dll'
+if (-not (Test-Path -LiteralPath $operationDll)) { throw "Operations smoke output was not found: $operationDll" }
+$operationOutput = & dotnet $operationDll
+if ($LASTEXITCODE -ne 0) { throw "Operations smoke test failed with exit code $LASTEXITCODE." }
+if ($operationOutput -notcontains 'Operations smoke: one accepted refresh per batch and stale completion suppression passed') { throw "Operations smoke test did not report the expected result. Output: $($operationOutput -join ' | ')" }
+$operationOutput
+
 Write-Host '[11/15] Shell icon infrastructure smoke test'
 $shellIconProject = Join-Path $repoRoot 'tests\OpenExplorer.ShellInterop.SmokeTests\OpenExplorer.ShellInterop.SmokeTests.csproj'
 Invoke-Checked 'dotnet' @('build', $shellIconProject, '-c', 'Debug', '--no-restore')

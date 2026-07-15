@@ -22,7 +22,10 @@
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition MinWidth="300" Width="*" /><ColumnDefinition Width="180" /><ColumnDefinition Width="140" /><ColumnDefinition Width="110" /></Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="{x:Bind IconGlyph, Mode=OneWay}" FontSize="17" HorizontalAlignment="Center" />
-                                <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{x:Bind Name, Mode=OneTime}" TextTrimming="CharacterEllipsis" />
+                                <Grid Grid.Column="1">
+                                    <TextBlock x:Name="RowNameText" VerticalAlignment="Center" Text="{x:Bind Name, Mode=OneTime}" TextTrimming="CharacterEllipsis" />
+                                    <TextBox x:Name="RowRenameTextBox" Visibility="Collapsed" VerticalAlignment="Center" />
+                                </Grid>
                                 <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{x:Bind DateModifiedText, Mode=OneTime}" />
                                 <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="{x:Bind TypeText, Mode=OneTime}" TextTrimming="CharacterEllipsis" />
                                 <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="{x:Bind SizeText, Mode=OneTime}" TextAlignment="Right" />

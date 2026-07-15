@@ -7,6 +7,7 @@ try
     RunSelectionTransitions();
     RunInvertedSelectAll();
     RunRefreshReconciliation();
+    RunExplicitOperationTargetChecks();
     RunSortingPreservation();
     RunKeyboardLookupChecks();
     await RunNavigationSelectionChecksAsync();
@@ -100,6 +101,21 @@ static void RunSortingPreservation()
     using var selection = new ExplorerSelectionModel();
     selection.SelectSingle(original.GetSourceItem(1));
     Assert(selection.IsSelected(sorted.GetSourceItem(3).ItemId), "Selection did not survive sorting by ItemId.");
+}
+
+static void RunExplicitOperationTargetChecks()
+{
+    using var selection = new ExplorerSelectionModel();
+    using var snapshot = new FakeSnapshot(100_000);
+    selection.SelectSingle(snapshot.GetRange(42, 1).Items[0]);
+    selection.Toggle(snapshot.GetRange(77, 1).Items[0]);
+
+    Assert(selection.TryGetExplicitSelectedItems(snapshot, out IReadOnlyList<ExplorerItem> targets), "Explicit operation targets were not resolved.");
+    Assert(targets.Count == 2 && targets[0].ItemId == 42 && targets[1].ItemId == 77, "Stable-ID operation targets were incorrect.");
+    Assert(snapshot.RangeRequestCount == 4, "Operation target resolution performed an unbounded managed scan.");
+
+    selection.SelectAll(snapshot.Count);
+    Assert(!selection.TryGetExplicitSelectedItems(snapshot, out _), "Inverted Select All was materialized for an operation.");
 }
 
 static void RunKeyboardLookupChecks()

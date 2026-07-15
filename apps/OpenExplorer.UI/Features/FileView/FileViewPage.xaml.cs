@@ -7,8 +7,11 @@ using Microsoft.UI.Input;
 using OpenExplorer.Application;
 using OpenExplorer.Application.Navigation;
 using OpenExplorer.Application.Icons;
+using OpenExplorer.Application.Operations;
+using OpenExplorer.Application.Selection;
 using OpenExplorer.Contracts;
 using OpenExplorer_UI.Features.Performance;
+using OpenExplorer_UI.Features.FileView.Details;
 using Windows.System;
 using Windows.UI.Core;
 
@@ -21,6 +24,9 @@ public sealed partial class FileViewPage : Page
     private bool updatingSortControls;
     private bool addressEditMode;
     private bool submittingAddress;
+    private bool operationBusy;
+    private IExplorerFileOperationProvider? operationProvider;
+    private ExplorerFileOperationCoordinator? operationCoordinator;
 
     public FileViewPage()
     {
@@ -30,6 +36,7 @@ public sealed partial class FileViewPage : Page
         frameMetricsCollector.MetricsUpdated += OnMetricsUpdated;
         DetailsView.SortRequested += OnSortRequested;
         DetailsView.DirectoryActivated += OnDirectoryActivated;
+        DetailsView.RenameCommitRequested += OnRenameCommitRequested;
         AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(OnPageKeyDown), handledEventsToo: true);
         UpdateDiagnostics(new FrameMetricsSnapshot(0, 0, 0, 0));
     }
@@ -62,6 +69,21 @@ public sealed partial class FileViewPage : Page
     }
 
     public void SetIconCoordinator(ExplorerIconCoordinator coordinator) => DetailsView.SetIconProvider(coordinator);
+
+    public void SetFileOperationProvider(IExplorerFileOperationProvider provider)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        operationProvider = provider;
+        UpdateOperationControls();
+    }
+
+    public void SetFileOperationCoordinator(ExplorerFileOperationCoordinator coordinator)
+    {
+        ArgumentNullException.ThrowIfNull(coordinator);
+        operationCoordinator = coordinator;
+        coordinator.StateChanged += OnOperationStateChanged;
+        UpdateOperationControls();
+    }
 
     private void OnLoaded(object sender, RoutedEventArgs args)
     {
@@ -107,6 +129,12 @@ public sealed partial class FileViewPage : Page
 
     private async void OnRefreshClick(object sender, RoutedEventArgs args) => await RefreshAsync();
 
+    private async void OnRenameClick(object sender, RoutedEventArgs args) => await BeginRenameAsync();
+
+    private async void OnNewFolderClick(object sender, RoutedEventArgs args) => await CreateFolderAsync();
+
+    private async void OnDeleteClick(object sender, RoutedEventArgs args) => await DeleteAsync();
+
     private async void OnPageKeyDown(object sender, KeyRoutedEventArgs args)
     {
         if (IsDown(VirtualKey.Control) && args.Key == VirtualKey.L ||
@@ -121,7 +149,158 @@ public sealed partial class FileViewPage : Page
         {
             args.Handled = true;
             await RefreshAsync();
+            return;
         }
+
+        if (addressEditMode || operationBusy) return;
+        if (args.Key == VirtualKey.F2)
+        {
+            args.Handled = true;
+            await BeginRenameAsync();
+        }
+        else if (args.Key == VirtualKey.N && IsDown(VirtualKey.Control) && IsDown(VirtualKey.Shift))
+        {
+            args.Handled = true;
+            await CreateFolderAsync();
+        }
+        else if (args.Key == VirtualKey.Delete)
+        {
+            args.Handled = true;
+            await DeleteAsync();
+        }
+    }
+
+    private async Task BeginRenameAsync()
+    {
+        if (!TryGetOperationItem(out ExplorerItem item) || operationProvider is null || navigationController?.CurrentLocation is not { } location) return;
+        DetailsView.BeginRename(item);
+        await Task.CompletedTask;
+    }
+
+    private async void OnRenameCommitRequested(RenameCommitRequest request)
+    {
+        if (operationProvider is null || navigationController?.CurrentLocation is not { } location) return;
+        string name = request.Name.Trim();
+        if (string.IsNullOrWhiteSpace(name)) { NavigationErrorText.Text = "A name is required."; DetailsView.BeginRename(request.ItemId); return; }
+        ExplorerFileOperationRequest operation = new(ExplorerFileOperationKind.Rename, location,
+            [new ExplorerFileOperationItem(request.ItemId, request.OriginalName, request.Kind)], name, navigationController.Generation);
+        await ExecuteOperationAsync(operation, request.ItemId);
+    }
+
+    private async Task CreateFolderAsync()
+    {
+        if (operationProvider is null || navigationController?.CurrentLocation is not { } location) return;
+        ExplorerFileOperationRequest operation = new(ExplorerFileOperationKind.CreateFolder, location, Array.Empty<ExplorerFileOperationItem>(), null, navigationController.Generation);
+        await ExecuteOperationAsync(operation, null);
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (operationProvider is null || navigationController?.CurrentLocation is not { } location) return;
+        IReadOnlyList<ExplorerFileOperationItem> items = GetSelectedOperationItems();
+        if (items.Count == 0)
+        {
+            NavigationErrorText.Text = "Select an item to delete.";
+            return;
+        }
+        ContentDialog dialog = new()
+        {
+            Title = "Move to Recycle Bin?",
+            Content = items.Count == 1 ? $"Move '{items[0].Name}' to the Recycle Bin?" : $"Move these {items.Count} items to the Recycle Bin?",
+            PrimaryButtonText = "Delete",
+            CloseButtonText = "Cancel",
+            XamlRoot = XamlRoot,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        ExplorerFileOperationRequest operation = new(ExplorerFileOperationKind.RecycleBinDelete, location,
+            items, null, navigationController.Generation);
+        await ExecuteOperationAsync(operation, null);
+    }
+
+    private async Task ExecuteOperationAsync(ExplorerFileOperationRequest operation, ulong? renameId)
+    {
+        if (operationProvider is null || operationBusy) return;
+        operationBusy = true;
+        DetailsView.SetOperationBusy(true);
+        UpdateOperationControls();
+        try
+        {
+            ExplorerFileOperationResult result = operationCoordinator is not null
+                ? await operationCoordinator.ExecuteAsync(operation, CancellationToken.None)
+                : await operationProvider.ExecuteAsync(operation, CancellationToken.None);
+            if (result.Status is ExplorerFileOperationStatus.Succeeded or ExplorerFileOperationStatus.Partial && result.Mutated)
+            {
+                if (operationCoordinator is null) await RefreshAsync();
+                if (result.CreatedItemId is ulong createdId)
+                {
+                    if (DetailsView.Items is { } items && navigationController?.Selection.TrySelectItem(items, createdId) == true)
+                    {
+                        DetailsView.FocusItem(createdId);
+                        DetailsView.BeginRename(createdId);
+                    }
+                }
+                else if (renameId.HasValue) DetailsView.FocusItem(renameId.Value);
+            }
+            if (result.Failures.Count > 0)
+                NavigationErrorText.Text = string.Join(" ", result.Failures.Take(2).Select(f => f.Message));
+        }
+        catch (Exception ex)
+        {
+            NavigationErrorText.Text = ex.Message;
+        }
+        finally
+        {
+            operationBusy = false;
+            DetailsView.SetOperationBusy(false);
+            OperationStatusText.Text = string.Empty;
+            UpdateOperationControls();
+        }
+    }
+
+    private bool TryGetFocusedItem(out ExplorerItem item)
+    {
+        item = default!;
+        if (navigationController?.Selection.FocusedItemId is not ulong id || DetailsView.Items is null ||
+            !DetailsView.Items.TryGetIndexByItemId(id, out ulong index) || index > int.MaxValue) return false;
+        item = DetailsView.Items.GetSourceItem((int)index);
+        return true;
+    }
+
+    private bool TryGetOperationItem(out ExplorerItem item)
+    {
+        item = default!;
+        if (navigationController is null) return false;
+        ulong? id = navigationController.Selection.FocusedItemId;
+        if (!id.HasValue)
+        {
+            ExplorerSelectionState state = navigationController.Selection.CaptureState();
+            id = state.SelectedIds.Count == 1 ? state.SelectedIds[0] : null;
+        }
+        return id.HasValue && TryGetItem(id.Value, out item);
+    }
+
+    private IReadOnlyList<ExplorerFileOperationItem> GetSelectedOperationItems()
+    {
+        if (navigationController is null || DetailsView.Items is null) return Array.Empty<ExplorerFileOperationItem>();
+        ExplorerSelectionState state = navigationController.Selection.CaptureState();
+        if (state.IsAllSelected)
+        {
+            NavigationErrorText.Text = "Delete requires individually selected items.";
+            return Array.Empty<ExplorerFileOperationItem>();
+        }
+
+        List<ExplorerFileOperationItem> result = [];
+        foreach (ulong id in state.SelectedIds)
+            if (TryGetItem(id, out ExplorerItem item)) result.Add(new ExplorerFileOperationItem(item.ItemId, item.Name, item.Kind));
+        return result;
+    }
+
+    private bool TryGetItem(ulong itemId, out ExplorerItem item)
+    {
+        item = default!;
+        if (DetailsView.Items?.TryGetIndexByItemId(itemId, out ulong index) != true || index > int.MaxValue) return false;
+        item = DetailsView.Items.GetSourceItem((int)index);
+        return true;
     }
 
     private void OnAddressEditClick(object sender, RoutedEventArgs args) => BeginAddressEdit();
@@ -218,6 +397,12 @@ public sealed partial class FileViewPage : Page
         UpdateNavigationState();
     }
 
+    private void OnOperationStateChanged(object? sender, EventArgs args)
+    {
+        operationBusy = operationCoordinator?.IsBusy ?? operationBusy;
+        UpdateOperationControls();
+    }
+
     private void UpdateNavigationState()
     {
         if (navigationController is null) return;
@@ -229,6 +414,7 @@ public sealed partial class FileViewPage : Page
         NavigationProgress.IsActive = navigationController.IsBusy;
         NavigationProgress.Visibility = navigationController.IsBusy ? Visibility.Visible : Visibility.Collapsed;
         DetailsView.SetSortEnabled(!navigationController.IsBusy);
+        UpdateOperationControls();
         DetailsView.SetSortOptions(navigationController.CurrentSortOptions);
         updatingSortControls = true;
         FoldersFirstCheckBox.IsEnabled = !navigationController.IsBusy;
@@ -300,6 +486,15 @@ public sealed partial class FileViewPage : Page
     {
         AddressEditButton.IsEnabled = !addressEditMode && navigationController is { IsBusy: false, CurrentLocation: not null };
         AddressTextBox.IsEnabled = addressEditMode && navigationController is { IsBusy: false } && !submittingAddress;
+    }
+
+    private void UpdateOperationControls()
+    {
+        bool enabled = operationProvider is not null && !(operationCoordinator?.IsBusy ?? operationBusy) && navigationController is { IsBusy: false, CurrentLocation: not null };
+        OperationStatusText.Text = operationBusy ? "Working…" : string.Empty;
+        RenameButton.IsEnabled = enabled && navigationController?.Selection.FocusedItemId is not null;
+        NewFolderButton.IsEnabled = enabled;
+        DeleteButton.IsEnabled = enabled && navigationController?.Selection.FocusedItemId is not null;
     }
 
     private void UpdateDiagnostics(FrameMetricsSnapshot snapshot)

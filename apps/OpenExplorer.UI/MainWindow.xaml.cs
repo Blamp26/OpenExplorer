@@ -2,6 +2,8 @@ using Microsoft.UI.Xaml;
 using OpenExplorer.Application;
 using OpenExplorer.Application.Navigation;
 using OpenExplorer.Application.Icons;
+using OpenExplorer.Application.Operations;
+using OpenExplorer.Contracts;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -41,5 +43,7 @@ public sealed partial class MainWindow : Window
     public void SetNavigationController(ExplorerNavigationController controller) => ((MainPage)RootFrame.Content).SetNavigationController(controller);
 
     public void SetIconCoordinator(ExplorerIconCoordinator coordinator) => ((MainPage)RootFrame.Content).SetIconCoordinator(coordinator);
+    public void SetFileOperationProvider(IExplorerFileOperationProvider provider) => ((MainPage)RootFrame.Content).SetFileOperationProvider(provider);
+    public void SetFileOperationCoordinator(ExplorerFileOperationCoordinator coordinator) => ((MainPage)RootFrame.Content).SetFileOperationCoordinator(coordinator);
 
 }

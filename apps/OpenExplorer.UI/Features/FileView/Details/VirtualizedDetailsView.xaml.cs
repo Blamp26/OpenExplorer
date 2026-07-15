@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Input;
 using OpenExplorer.Application.Diagnostics;
 using OpenExplorer.Application.Icons;
@@ -14,6 +15,11 @@ namespace OpenExplorer_UI.Features.FileView.Details;
 
 public sealed partial class VirtualizedDetailsView : UserControl
 {
+    private readonly Dictionary<ulong, string> renameTextById = [];
+    private ulong? editingItemId;
+    private bool operationBusy;
+
+    public event Action<RenameCommitRequest>? RenameCommitRequested;
     public VirtualizedDetailsView()
     {
         InitializeComponent();
@@ -91,6 +97,41 @@ public sealed partial class VirtualizedDetailsView : UserControl
     }
 
     public void FocusView() => DetailsScrollViewer.Focus(FocusState.Programmatic);
+
+    public void SetOperationBusy(bool busy) { operationBusy = busy; }
+
+    public void BeginRename(ExplorerItem item)
+    {
+        if (operationBusy) return;
+        editingItemId = item.ItemId;
+        renameTextById[item.ItemId] = item.Kind == ExplorerItemKind.File
+            ? Path.GetFileNameWithoutExtension(item.Name)
+            : item.Name;
+        RefreshRealizedRows();
+        if (Items?.TryGetIndexByItemId(item.ItemId, out ulong index) == true && index <= int.MaxValue)
+        {
+            UIElement element = DetailsRepeater.GetOrCreateElement((int)index);
+            element.Focus(FocusState.Programmatic);
+            if (FindRenameBox(element) is { } box) { box.Focus(FocusState.Programmatic); box.SelectAll(); }
+        }
+    }
+
+    public void BeginRename(ulong itemId)
+    {
+        if (Items?.TryGetIndexByItemId(itemId, out ulong index) != true || index > int.MaxValue) return;
+        BeginRename(Items.GetSourceItem((int)index));
+    }
+
+    public void ShowRenameError(ulong itemId, string message)
+    {
+        if (editingItemId != itemId) return;
+        // Keep the identity-keyed editor text intact; the page owns the visible error.
+    }
+
+    public void FocusItem(ulong itemId)
+    {
+        if (Items?.TryGetIndexByItemId(itemId, out ulong index) == true && index <= int.MaxValue) FocusLogicalIndex((int)index);
+    }
 
     public void SetSortOptions(ExplorerSortOptions options)
     {
@@ -199,6 +240,7 @@ public sealed partial class VirtualizedDetailsView : UserControl
         {
             realizedRows.Add(element);
             ApplyRowState(element);
+            ApplyRenameState(element);
             if (element.DataContext is SnapshotFileItem item) QueueIcon(item, DetailsRepeater.GetElementIndex(element));
         }
     }
@@ -209,6 +251,7 @@ public sealed partial class VirtualizedDetailsView : UserControl
         if (args.Element is FrameworkElement element)
         {
             realizedRows.Remove(element);
+            if (FindRenameBox(element) is { } box) { box.Text = string.Empty; box.Visibility = Visibility.Collapsed; }
             element.ClearValue(FrameworkElement.TagProperty);
         }
     }
@@ -250,7 +293,43 @@ public sealed partial class VirtualizedDetailsView : UserControl
 
     private void RefreshRealizedRows()
     {
-        foreach (FrameworkElement row in realizedRows) ApplyRowState(row);
+        foreach (FrameworkElement row in realizedRows) { ApplyRowState(row); ApplyRenameState(row); }
+    }
+
+    private void ApplyRenameState(FrameworkElement row)
+    {
+        if (row.DataContext is not SnapshotFileItem item || FindRenameBox(row) is not { } box) return;
+        bool editing = editingItemId == item.ItemId;
+        box.Visibility = editing ? Visibility.Visible : Visibility.Collapsed;
+        if (editing && renameTextById.TryGetValue(item.ItemId, out string? text) && box.Text != text) box.Text = text;
+    }
+
+    private static TextBox? FindRenameBox(DependencyObject root)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(root, i);
+            if (child is TextBox box) return box;
+            if (FindRenameBox(child) is { } nested) return nested;
+        }
+        return null;
+    }
+
+    protected override void OnKeyDown(KeyRoutedEventArgs args)
+    {
+        base.OnKeyDown(args);
+        if (editingItemId is not ulong id || Items is null || !Items.TryGetIndexByItemId(id, out ulong index) || index > int.MaxValue) return;
+        if (args.Key == VirtualKey.Escape)
+        {
+            editingItemId = null; renameTextById.Remove(id); RefreshRealizedRows(); FocusView(); args.Handled = true;
+        }
+        else if (args.Key == VirtualKey.Enter && FindRenameBox(DetailsRepeater.GetOrCreateElement((int)index)) is { } box)
+        {
+            ExplorerItem item = Items.GetSourceItem((int)index);
+            editingItemId = null; renameTextById.Remove(id); RefreshRealizedRows();
+            RenameCommitRequested?.Invoke(new RenameCommitRequest(id, item.Name, item.Kind, box.Text));
+            args.Handled = true;
+        }
     }
 
     private void ApplyRowState(FrameworkElement row)
@@ -304,3 +383,5 @@ public sealed partial class VirtualizedDetailsView : UserControl
         FocusLogicalIndex((int)focusedIndex);
     }
 }
+
+public sealed record RenameCommitRequest(ulong ItemId, string OriginalName, ExplorerItemKind Kind, string Name);
