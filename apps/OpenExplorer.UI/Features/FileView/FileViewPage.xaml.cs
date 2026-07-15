@@ -32,6 +32,8 @@ public sealed partial class FileViewPage : Page
         VersionText.Text = $"Native initialization error: {message}";
     }
 
+    public void SetLocation(string path) => LocationText.Text = path;
+
     public void SetSnapshot(IExplorerSnapshot snapshot) => DetailsView.SetSnapshot(snapshot);
 
     public void DisposeSnapshot() => DetailsView.DisposeSnapshot();

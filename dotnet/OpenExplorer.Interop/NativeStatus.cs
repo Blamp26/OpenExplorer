@@ -9,6 +9,11 @@ internal enum NativeStatus : uint
     BufferTooSmall = 4,
     InternalError = 5,
     Panic = 6,
+    NotFound = 7,
+    AccessDenied = 8,
+    NotDirectory = 9,
+    InvalidUtf8 = 10,
+    IoError = 11,
 }
 
 internal static class NativeStatusExtensions
@@ -28,6 +33,11 @@ internal static class NativeStatusExtensions
             (uint)NativeStatus.BufferTooSmall => "BUFFER_TOO_SMALL",
             (uint)NativeStatus.InternalError => "INTERNAL_ERROR",
             (uint)NativeStatus.Panic => "PANIC",
+            (uint)NativeStatus.NotFound => "NOT_FOUND",
+            (uint)NativeStatus.AccessDenied => "ACCESS_DENIED",
+            (uint)NativeStatus.NotDirectory => "NOT_DIRECTORY",
+            (uint)NativeStatus.InvalidUtf8 => "INVALID_UTF8",
+            (uint)NativeStatus.IoError => "IO_ERROR",
             _ => "UNKNOWN",
         };
         throw new NativeInteropException($"{operation} failed with native status {value} ({name}).");

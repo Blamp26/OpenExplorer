@@ -94,7 +94,8 @@ public sealed class NativeExplorerSnapshot : IExplorerSnapshot
     private static ExplorerItem ConvertRecord(NativeItemRecord record, byte[] text, uint textLength)
     {
         const uint sizePresent = 1;
-        if ((record.Flags & ~sizePresent) != 0 || (record.Flags & sizePresent) == 0 && record.Size != 0)
+        const uint lossyName = 2;
+        if ((record.Flags & ~(sizePresent | lossyName)) != 0 || (record.Flags & sizePresent) == 0 && record.Size != 0)
         {
             throw new NativeInteropException("fe_snapshot_get_range returned invalid item flags.");
         }
@@ -131,7 +132,7 @@ public sealed class NativeExplorerSnapshot : IExplorerSnapshot
             throw new NativeInteropException("fe_snapshot_get_range returned an invalid timestamp.", exception);
         }
 
-        return new ExplorerItem(record.ItemId, name, modified, (record.Flags & sizePresent) != 0 ? record.Size : null, kind);
+        return new ExplorerItem(record.ItemId, name, modified, (record.Flags & sizePresent) != 0 ? record.Size : null, kind, (record.Flags & lossyName) != 0);
     }
 
     private void ThrowIfDisposed()

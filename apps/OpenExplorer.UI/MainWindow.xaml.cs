@@ -42,6 +42,8 @@ public sealed partial class MainWindow : Window
         ((MainPage)RootFrame.Content).SetSnapshot(snapshot);
     }
 
+    public void SetLocation(string path) => ((MainPage)RootFrame.Content).SetLocation(path);
+
     public void DisposeSnapshot()
     {
         if (RootFrame.Content is MainPage page)

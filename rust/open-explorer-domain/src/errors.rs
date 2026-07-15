@@ -3,9 +3,15 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExplorerErrorCode {
     InvalidArgument,
+    OutOfRange,
     InitializationFailed,
     Unavailable,
     Internal,
+    NotFound,
+    AccessDenied,
+    NotDirectory,
+    InvalidUtf8,
+    IoError,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

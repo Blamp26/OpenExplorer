@@ -4,7 +4,7 @@ using OpenExplorer.Interop;
 try
 {
     using var engine = new NativeExplorerEngine();
-    if (engine.ApiVersion != 2)
+    if (engine.ApiVersion != 3)
     {
         Console.Error.WriteLine($"Unexpected native API version: {engine.ApiVersion}");
         return 1;
@@ -35,7 +35,7 @@ try
         throw new InvalidOperationException("The long native name was truncated.");
     }
 
-    Console.WriteLine("Native snapshot API version: 2, items: 100000, range paging passed");
+    Console.WriteLine("Native snapshot API version: 3, items: 100000, range paging passed");
     return 0;
 }
 catch (Exception exception)

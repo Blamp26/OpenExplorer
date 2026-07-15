@@ -13,4 +13,5 @@ pub struct ExplorerItem {
     pub modified_unix_ms: i64,
     pub size: Option<u64>,
     pub kind: ExplorerItemKind,
+    pub name_was_lossy: bool,
 }

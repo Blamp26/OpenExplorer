@@ -22,7 +22,9 @@ public partial class App : Application
         {
             _engine = new NativeExplorerEngine();
             ((MainWindow)_window).SetViewModel(new MainViewModel(_engine));
-            IExplorerSnapshot snapshot = _engine.CreateSyntheticSnapshot(100_000);
+            string profilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            IExplorerSnapshot snapshot = _engine.OpenSnapshot(ExplorerLocation.File(profilePath));
+            ((MainWindow)_window).SetLocation(profilePath);
             ((MainWindow)_window).SetSnapshot(snapshot);
         }
         catch (Exception exception)

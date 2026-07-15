@@ -23,5 +23,7 @@ public sealed partial class MainPage : Page
 
     public void SetSnapshot(IExplorerSnapshot snapshot) => FileView.SetSnapshot(snapshot);
 
+    public void SetLocation(string path) => FileView.SetLocation(path);
+
     public void DisposeSnapshot() => FileView.DisposeSnapshot();
 }

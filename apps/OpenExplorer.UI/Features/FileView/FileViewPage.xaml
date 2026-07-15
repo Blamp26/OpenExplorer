@@ -20,6 +20,11 @@
                 x:Name="VersionText"
                 Style="{StaticResource OpenExplorerSecondaryTextStyle}"
                 Text="Initializing native engine..." />
+            <TextBlock
+                x:Name="LocationText"
+                Style="{StaticResource OpenExplorerSecondaryTextStyle}"
+                Text="Opening user profile..."
+                TextTrimming="CharacterEllipsis" />
         </StackPanel>
 
         <Border

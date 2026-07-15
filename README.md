@@ -1,6 +1,6 @@
 # OpenExplorer
 
-OpenExplorer is a Windows-only file manager foundation built around WinUI 3 and a Rust native engine. The packaged WinUI application composes a C# view model over `OpenExplorer.Interop`, which loads native API v2 and pages an immutable synthetic Rust snapshot into the virtualized Details View.
+OpenExplorer is a Windows-only file manager foundation built around WinUI 3 and a Rust native engine. The packaged WinUI application composes a C# view model over `OpenExplorer.Interop`, which loads native API v3 and pages an immutable local-directory Rust snapshot into the virtualized Details View. Synthetic snapshots remain available for diagnostics.
 
 ## Stack and status
 
@@ -8,7 +8,7 @@ OpenExplorer is a Windows-only file manager foundation built around WinUI 3 and 
 - C# Contracts, Application, Interop, and Design System projects.
 - Rust 2021 with an MSVC `cdylib` and a narrow C ABI.
 - x64 is the first supported architecture.
-- File browsing, search, indexing, and Shell integration are not implemented yet.
+- Navigation, search, indexing, and Shell integration are not implemented yet; startup opens only the current user profile directory.
 
 ## Layout
 
@@ -49,4 +49,4 @@ Smoke mode confirms that the process creates a top-level window and remains aliv
 
 ## Deferred work
 
-Directory enumeration, navigation, file operations, search, indexing, Shell integration, previews, thumbnails, and all other file-browser functionality are deliberately deferred.
+Navigation, file operations, search, indexing, Shell integration, previews, thumbnails, and broader file-browser functionality are deliberately deferred. The current startup provider only snapshots the user's profile directory once.
