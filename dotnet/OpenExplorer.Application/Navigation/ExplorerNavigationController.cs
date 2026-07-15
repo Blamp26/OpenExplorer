@@ -9,6 +9,7 @@ public sealed class ExplorerNavigationController : IDisposable
     private readonly ILocationSnapshotFactory snapshotFactory;
     private readonly ILocationHierarchy hierarchy;
     private readonly IExplorerSnapshotViewFactory viewFactory;
+    private readonly ILocationAddressResolver? addressResolver;
     private readonly List<ExplorerLocation> backHistory = [];
     private readonly List<ExplorerLocation> forwardHistory = [];
     private readonly HashSet<IExplorerSnapshot> inUseSnapshots = [];
@@ -25,11 +26,13 @@ public sealed class ExplorerNavigationController : IDisposable
     public ExplorerNavigationController(
         ILocationSnapshotFactory snapshotFactory,
         ILocationHierarchy hierarchy,
-        IExplorerSnapshotViewFactory viewFactory)
+        IExplorerSnapshotViewFactory viewFactory,
+        ILocationAddressResolver? addressResolver = null)
     {
         this.snapshotFactory = snapshotFactory ?? throw new ArgumentNullException(nameof(snapshotFactory));
         this.hierarchy = hierarchy ?? throw new ArgumentNullException(nameof(hierarchy));
         this.viewFactory = viewFactory ?? throw new ArgumentNullException(nameof(viewFactory));
+        this.addressResolver = addressResolver;
     }
 
     public event EventHandler? StateChanged;
@@ -51,6 +54,15 @@ public sealed class ExplorerNavigationController : IDisposable
     }
     public bool IsBusy { get { ThrowIfDisposed(); return isBusy; } }
     public string? ErrorMessage { get { ThrowIfDisposed(); return errorMessage; } }
+    public IReadOnlyList<ExplorerBreadcrumb> CurrentBreadcrumbs
+    {
+        get
+        {
+            ThrowIfDisposed();
+            if (currentLocation is null || addressResolver is null) return Array.Empty<ExplorerBreadcrumb>();
+            return addressResolver.GetBreadcrumbs(currentLocation);
+        }
+    }
 
     public Task InitializeAsync(ExplorerLocation location)
     {
@@ -68,6 +80,27 @@ public sealed class ExplorerNavigationController : IDisposable
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(location);
         return StartNavigationAsync(location, NavigationKind.Normal);
+    }
+
+    public Task NavigateAddressAsync(string input)
+    {
+        ThrowIfDisposed();
+        if (addressResolver is null)
+        {
+            SetError(new NotSupportedException("Address navigation is not supported by this provider."));
+            return Task.CompletedTask;
+        }
+
+        try
+        {
+            ExplorerLocation location = addressResolver.ParseAddress(input);
+            return NavigateToAsync(location);
+        }
+        catch (Exception exception)
+        {
+            SetError(exception);
+            return Task.CompletedTask;
+        }
     }
 
     public Task NavigateIntoAsync(ExplorerItem child)
@@ -163,6 +196,10 @@ public sealed class ExplorerNavigationController : IDisposable
 
     private Task StartNavigationAsync(ExplorerLocation location, NavigationKind kind)
     {
+        if (kind == NavigationKind.Normal && IsSameLocation(currentLocation, location))
+        {
+            return Task.CompletedTask;
+        }
         long request = BeginRequest();
         ExplorerSortOptions sortOptions = currentSortOptions;
         return OpenAndApplyNavigationAsync(location, kind, request, sortOptions);
@@ -342,6 +379,20 @@ public sealed class ExplorerNavigationController : IDisposable
         isBusy = false;
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    private void SetError(Exception exception)
+    {
+        if (disposed) return;
+        errorMessage = exception.Message;
+        StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static bool IsSameLocation(ExplorerLocation? left, ExplorerLocation right) =>
+        left is not null
+        && left.Scheme == right.Scheme
+        && (left.Scheme != ExplorerLocationScheme.File
+            || string.Equals(left.Identifier, right.Identifier, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(left.Identifier.TrimEnd('\\', '/'), right.Identifier.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase));
 
     private bool IsStale(long request) => disposed || request != generation;
 

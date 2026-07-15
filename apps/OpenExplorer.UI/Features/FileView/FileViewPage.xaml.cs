@@ -2,10 +2,14 @@ using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Input;
 using OpenExplorer.Application;
 using OpenExplorer.Application.Navigation;
 using OpenExplorer.Contracts;
 using OpenExplorer_UI.Features.Performance;
+using Windows.System;
+using Windows.UI.Core;
 
 namespace OpenExplorer_UI.Features.FileView;
 
@@ -14,6 +18,8 @@ public sealed partial class FileViewPage : Page
     private readonly FrameMetricsCollector frameMetricsCollector = new();
     private ExplorerNavigationController? navigationController;
     private bool updatingSortControls;
+    private bool addressEditMode;
+    private bool submittingAddress;
 
     public FileViewPage()
     {
@@ -22,6 +28,7 @@ public sealed partial class FileViewPage : Page
         Unloaded += OnUnloaded;
         frameMetricsCollector.MetricsUpdated += OnMetricsUpdated;
         DetailsView.SortRequested += OnSortRequested;
+        DetailsView.DirectoryActivated += OnDirectoryActivated;
         AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(OnPageKeyDown), handledEventsToo: true);
         UpdateDiagnostics(new FrameMetricsSnapshot(0, 0, 0, 0));
     }
@@ -38,7 +45,7 @@ public sealed partial class FileViewPage : Page
         VersionText.Text = $"Native initialization error: {message}";
     }
 
-    public void SetLocation(string path) => LocationText.Text = path;
+    public void SetLocation(string path) => AddressTextBox.Text = path;
 
     public void SetNavigationController(ExplorerNavigationController controller)
     {
@@ -99,10 +106,81 @@ public sealed partial class FileViewPage : Page
 
     private async void OnPageKeyDown(object sender, KeyRoutedEventArgs args)
     {
-        if (args.Key != Windows.System.VirtualKey.F5) return;
-        args.Handled = true;
-        await RefreshAsync();
+        if (IsDown(VirtualKey.Control) && args.Key == VirtualKey.L ||
+            IsDown(VirtualKey.Menu) && args.Key == VirtualKey.D)
+        {
+            args.Handled = true;
+            BeginAddressEdit();
+            return;
+        }
+
+        if (args.Key == VirtualKey.F5 && !addressEditMode)
+        {
+            args.Handled = true;
+            await RefreshAsync();
+        }
     }
+
+    private void OnAddressEditClick(object sender, RoutedEventArgs args) => BeginAddressEdit();
+
+    private void OnAddressCancelClick(object sender, RoutedEventArgs args) => CancelAddressEdit();
+
+    private void BeginAddressEdit()
+    {
+        if (navigationController?.CurrentLocation is not { } location || navigationController.IsBusy) return;
+        addressEditMode = true;
+        AddressTextBox.Text = location.Identifier;
+        AddressTextBox.Visibility = Visibility.Visible;
+        AddressCancelButton.Visibility = Visibility.Visible;
+        AddressEditButton.Visibility = Visibility.Collapsed;
+        AddressTextBox.Focus(FocusState.Programmatic);
+        AddressTextBox.SelectAll();
+        UpdateAddressControls();
+    }
+
+    private void CancelAddressEdit()
+    {
+        addressEditMode = false;
+        submittingAddress = false;
+        AddressTextBox.Text = navigationController?.CurrentLocation?.Identifier ?? string.Empty;
+        AddressTextBox.Visibility = Visibility.Collapsed;
+        AddressCancelButton.Visibility = Visibility.Collapsed;
+        AddressEditButton.Visibility = Visibility.Visible;
+        if (navigationController?.CurrentLocation is { } location)
+        {
+            RenderBreadcrumbs(location);
+        }
+        UpdateAddressControls();
+        DetailsView.FocusView();
+    }
+
+    private async void OnAddressKeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        if (args.Key == VirtualKey.Escape)
+        {
+            args.Handled = true;
+            CancelAddressEdit();
+            return;
+        }
+
+        if (args.Key != VirtualKey.Enter || submittingAddress) return;
+        args.Handled = true;
+        submittingAddress = true;
+        try
+        {
+            if (navigationController is null) return;
+            await navigationController.NavigateAddressAsync(AddressTextBox.Text);
+            CancelAddressEdit();
+        }
+        catch
+        {
+            NavigationErrorText.Text = "Unable to open that folder.";
+            submittingAddress = false;
+        }
+    }
+
+    private static bool IsDown(VirtualKey key) =>
+        (InputKeyboardSource.GetKeyStateForCurrentThread(key) & CoreVirtualKeyStates.Down) != 0;
 
     private async Task RefreshAsync()
     {
@@ -144,6 +222,7 @@ public sealed partial class FileViewPage : Page
         ForwardButton.IsEnabled = !navigationController.IsBusy && navigationController.CanGoForward;
         UpButton.IsEnabled = !navigationController.IsBusy && navigationController.CanGoUp;
         RefreshButton.IsEnabled = !navigationController.IsBusy && navigationController.CurrentLocation is not null;
+        UpdateAddressControls();
         NavigationProgress.IsActive = navigationController.IsBusy;
         NavigationProgress.Visibility = navigationController.IsBusy ? Visibility.Visible : Visibility.Collapsed;
         DetailsView.SetSortEnabled(!navigationController.IsBusy);
@@ -155,13 +234,68 @@ public sealed partial class FileViewPage : Page
         NavigationErrorText.Text = navigationController.ErrorMessage ?? string.Empty;
         if (navigationController.CurrentLocation is { } location)
         {
-            LocationText.Text = location.Identifier;
+            if (!addressEditMode) AddressTextBox.Text = location.Identifier;
+            if (!addressEditMode) RenderBreadcrumbs(location);
         }
         if (navigationController.CurrentItems is { } items && !ReferenceEquals(DetailsView.Items, items))
         {
             DetailsView.SetItems(items);
         }
         UpdateDiagnostics(new FrameMetricsSnapshot(0, 0, 0, 0));
+    }
+
+    private void RenderBreadcrumbs(ExplorerLocation location)
+    {
+        BreadcrumbPanel.Children.Clear();
+        foreach (ExplorerBreadcrumb breadcrumb in navigationController?.CurrentBreadcrumbs ?? Array.Empty<ExplorerBreadcrumb>())
+        {
+            if (BreadcrumbPanel.Children.Count > 0)
+            {
+                BreadcrumbPanel.Children.Add(new TextBlock { Text = "›", Opacity = 0.65, VerticalAlignment = VerticalAlignment.Center });
+            }
+
+            if (breadcrumb.IsCurrent)
+            {
+                TextBlock text = new()
+                {
+                    Text = breadcrumb.Label,
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Padding = new Thickness(8, 5, 8, 5),
+                    MaxWidth = 360,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                };
+                AutomationProperties.SetName(text, $"Current location: {breadcrumb.Label}");
+                BreadcrumbPanel.Children.Add(text);
+            }
+            else
+            {
+                Button button = new()
+                {
+                    Content = breadcrumb.Label,
+                    Tag = breadcrumb.Location,
+                    Padding = new Thickness(8, 5, 8, 5),
+                    MinWidth = 0,
+                    MaxWidth = 280,
+                    HorizontalContentAlignment = HorizontalAlignment.Left,
+                };
+                AutomationProperties.SetName(button, $"Navigate to {breadcrumb.Label}");
+                button.Click += OnBreadcrumbClick;
+                BreadcrumbPanel.Children.Add(button);
+            }
+        }
+    }
+
+    private async void OnBreadcrumbClick(object sender, RoutedEventArgs args)
+    {
+        if (navigationController is null || navigationController.IsBusy || sender is not Button { Tag: ExplorerLocation location }) return;
+        await navigationController.NavigateToAsync(location);
+    }
+
+    private void UpdateAddressControls()
+    {
+        AddressEditButton.IsEnabled = !addressEditMode && navigationController is { IsBusy: false, CurrentLocation: not null };
+        AddressTextBox.IsEnabled = addressEditMode && navigationController is { IsBusy: false } && !submittingAddress;
     }
 
     private void UpdateDiagnostics(FrameMetricsSnapshot snapshot)

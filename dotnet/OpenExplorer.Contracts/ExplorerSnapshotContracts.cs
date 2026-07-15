@@ -65,6 +65,16 @@ public sealed record ExplorerLocation
     public static ExplorerLocation File(string path) => new(ExplorerLocationScheme.File, path);
 }
 
+public sealed record ExplorerBreadcrumb(string Label, ExplorerLocation Location, bool IsCurrent);
+
+/// <summary>Provider-owned interpretation of user-entered locations and ancestor segments.</summary>
+public interface ILocationAddressResolver
+{
+    ExplorerLocation ParseAddress(string input);
+
+    IReadOnlyList<ExplorerBreadcrumb> GetBreadcrumbs(ExplorerLocation location);
+}
+
 public sealed record ExplorerItem(
     ulong ItemId,
     string Name,

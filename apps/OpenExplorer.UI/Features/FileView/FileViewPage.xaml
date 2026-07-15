@@ -10,6 +10,8 @@
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -29,24 +31,63 @@
             <Button x:Name="ForwardButton" Content="Forward" Click="OnForwardClick" AutomationProperties.Name="Forward" ToolTipService.ToolTip="Forward" />
             <Button x:Name="UpButton" Content="Up" Click="OnUpClick" AutomationProperties.Name="Up" ToolTipService.ToolTip="Up" />
             <Button x:Name="RefreshButton" Content="Refresh" Click="OnRefreshClick" AutomationProperties.Name="Refresh" ToolTipService.ToolTip="Refresh (F5)" />
-            <TextBlock
-                x:Name="LocationText"
-                VerticalAlignment="Center"
-                Margin="8,0,0,0"
-                Text="Opening user profile..."
-                TextTrimming="CharacterEllipsis" />
             <ProgressRing x:Name="NavigationProgress" Width="18" Height="18" IsActive="False" Visibility="Collapsed" />
             <CheckBox x:Name="FoldersFirstCheckBox" Content="Folders first" IsChecked="True" Checked="OnFoldersFirstChanged" Unchecked="OnFoldersFirstChanged" AutomationProperties.Name="Folders first" ToolTipService.ToolTip="Keep folders before files" />
         </StackPanel>
 
+        <Grid Grid.Row="2" ColumnSpacing="8" MinWidth="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ScrollViewer
+                x:Name="BreadcrumbScrollViewer"
+                Grid.Column="0"
+                HorizontalScrollBarVisibility="Auto"
+                HorizontalScrollMode="Enabled"
+                VerticalScrollBarVisibility="Hidden"
+                VerticalScrollMode="Disabled"
+                AutomationProperties.Name="Breadcrumbs">
+                <StackPanel x:Name="BreadcrumbPanel" Orientation="Horizontal" Spacing="2" />
+            </ScrollViewer>
+            <Button
+                x:Name="AddressEditButton"
+                Grid.Column="1"
+                Content="Address"
+                Click="OnAddressEditClick"
+                AutomationProperties.Name="Edit address"
+                ToolTipService.ToolTip="Edit address (Ctrl+L or Alt+D)" />
+        </Grid>
+
+        <Grid Grid.Row="3" ColumnSpacing="8" MinWidth="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox
+                x:Name="AddressTextBox"
+                Grid.Column="0"
+                PlaceholderText="Enter an absolute path"
+                KeyDown="OnAddressKeyDown"
+                AutomationProperties.Name="Address"
+                Visibility="Collapsed" />
+            <Button
+                x:Name="AddressCancelButton"
+                Grid.Column="1"
+                Content="Cancel"
+                Click="OnAddressCancelClick"
+                AutomationProperties.Name="Cancel address edit"
+                Visibility="Collapsed" />
+        </Grid>
+
         <TextBlock
             x:Name="NavigationErrorText"
-            Grid.Row="2"
+            Grid.Row="4"
             Foreground="#C42B1C"
             TextTrimming="CharacterEllipsis" />
 
         <Border
-            Grid.Row="3"
+            Grid.Row="5"
             Padding="12,9"
             Background="{StaticResource OpenExplorerDiagnosticsBackground}">
             <StackPanel Spacing="4">
@@ -57,6 +98,6 @@
 
         <details:VirtualizedDetailsView
             x:Name="DetailsView"
-            Grid.Row="4" />
+            Grid.Row="6" />
     </Grid>
 </Page>

@@ -2,7 +2,7 @@ using OpenExplorer.Contracts;
 
 namespace OpenExplorer.Interop;
 
-public sealed class NativeExplorerEngine : IExplorerEngine, IDiagnosticSnapshotFactory, ILocationSnapshotFactory, ILocationHierarchy, IExplorerSnapshotViewFactory
+public sealed class NativeExplorerEngine : IExplorerEngine, IDiagnosticSnapshotFactory, ILocationSnapshotFactory, ILocationHierarchy, IExplorerSnapshotViewFactory, ILocationAddressResolver
 {
     private readonly SafeEngineHandle _handle;
     private bool _disposed;
@@ -73,6 +73,65 @@ public sealed class NativeExplorerEngine : IExplorerEngine, IDiagnosticSnapshotF
             if (snapshot == 0) throw new NativeInteropException("fe_engine_open_local_directory_snapshot returned a null handle.");
             return new NativeExplorerSnapshot(new SafeSnapshotHandle(snapshot));
         }
+    }
+
+    public ExplorerLocation ParseAddress(string input)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (input is null) throw new ArgumentNullException(nameof(input));
+        string value = input.Trim();
+        if (value.Length >= 2 && value[0] == '"' && value[^1] == '"') value = value[1..^1].Trim();
+        if (value.Length == 0 || value.Contains('"')) throw new ArgumentException("Enter an absolute Windows folder path.", nameof(input));
+        value = Environment.ExpandEnvironmentVariables(value).Trim();
+        if (!Path.IsPathFullyQualified(value)) throw new ArgumentException("Enter an absolute Windows folder path.", nameof(input));
+        try
+        {
+            string fullPath = Path.GetFullPath(value);
+            if (string.IsNullOrWhiteSpace(Path.GetPathRoot(fullPath))) throw new ArgumentException("Enter an absolute Windows folder path.", nameof(input));
+            return ExplorerLocation.File(fullPath);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        {
+            throw new ArgumentException("Enter a valid absolute Windows folder path.", nameof(input), exception);
+        }
+    }
+
+    public IReadOnlyList<ExplorerBreadcrumb> GetBreadcrumbs(ExplorerLocation location)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        EnsureFileLocation(location);
+        string path = GetAbsolutePath(location.Identifier);
+        string root = Path.GetPathRoot(path) ?? throw new InvalidOperationException("The file location has no filesystem root.");
+        var result = new List<ExplorerBreadcrumb>();
+        string trimmed = TrimTrailingSeparators(path);
+        string rootTrimmed = TrimTrailingSeparators(root);
+        if (root.StartsWith("\\\\", StringComparison.Ordinal))
+        {
+            // Path.GetPathRoot already contains the server and share. Keep that
+            // pair as one usable ancestor; navigating to only \\server is not a
+            // directory location and must never become a breadcrumb target.
+            result.Add(new ExplorerBreadcrumb(rootTrimmed, ExplorerLocation.File(rootTrimmed + "\\"), trimmed.Equals(rootTrimmed, StringComparison.OrdinalIgnoreCase)));
+            string uncRemainder = trimmed.Length > rootTrimmed.Length ? trimmed[rootTrimmed.Length..] : string.Empty;
+            string[] parts = uncRemainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+            string current = rootTrimmed;
+            for (int i = 0; i < parts.Length; i++)
+            {
+                current = current.TrimEnd('\\') + "\\" + parts[i];
+                result.Add(new ExplorerBreadcrumb(parts[i], ExplorerLocation.File(current), i == parts.Length - 1));
+            }
+            return result;
+        }
+
+        result.Add(new ExplorerBreadcrumb(root, ExplorerLocation.File(root), string.Equals(trimmed, rootTrimmed, StringComparison.OrdinalIgnoreCase)));
+        string remainder = trimmed.Length > root.Length ? trimmed[root.Length..] : string.Empty;
+        string currentPath = root;
+        string[] segments = remainder.Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 0; i < segments.Length; i++)
+        {
+            currentPath = currentPath.TrimEnd('\\') + "\\" + segments[i];
+            result.Add(new ExplorerBreadcrumb(segments[i], ExplorerLocation.File(currentPath), i == segments.Length - 1));
+        }
+        return result;
     }
 
     public IExplorerSnapshot CreateSortedView(IExplorerSnapshot source, ExplorerSortOptions options)

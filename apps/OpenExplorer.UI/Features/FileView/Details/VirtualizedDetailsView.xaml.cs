@@ -65,6 +65,8 @@ public sealed partial class VirtualizedDetailsView : UserControl
         realizedRows.Clear();
     }
 
+    public void FocusView() => DetailsScrollViewer.Focus(FocusState.Programmatic);
+
     public void SetSortOptions(ExplorerSortOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

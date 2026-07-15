@@ -8,16 +8,40 @@ try
 {
     await RunFakeNavigationChecksAsync();
     await RunStaleRequestCheckAsync();
+    await RunStaleAddressRequestCheckAsync();
     await RunRefreshChecksAsync();
+    await RunAddressAndBreadcrumbChecksAsync();
     await RunRealProviderCheckAsync();
     Console.WriteLine("Navigation model: history, stale requests, and local folder transitions passed");
     Console.WriteLine("Refresh smoke: F5/toolbar refresh keeps valid contents and state");
+    Console.WriteLine("Navigation shell smoke: address submission, cancel, and breadcrumbs passed");
     return 0;
 }
+
 catch (Exception exception)
 {
     Console.Error.WriteLine($"Navigation smoke test failed: {exception.Message}");
     return 1;
+}
+
+static async Task RunAddressAndBreadcrumbChecksAsync()
+{
+    var factory = new FakeFactory();
+    var hierarchy = new FakeHierarchy();
+    var resolver = new FakeAddressResolver();
+    using var controller = new ExplorerNavigationController(factory, hierarchy, factory, resolver);
+    ExplorerLocation a = ExplorerLocation.File("A");
+    await controller.InitializeAsync(a);
+    await controller.NavigateAddressAsync("  \"B\"  ");
+    Assert(controller.CurrentLocation == ExplorerLocation.File("B") && controller.CanGoBack, "Address submission did not navigate normally.");
+    int opens = factory.OpenCount;
+    await controller.NavigateAddressAsync("B");
+    Assert(factory.OpenCount == opens && controller.CanGoBack, "Re-entering the current address duplicated history or opened a snapshot.");
+    await controller.NavigateAddressAsync("missing");
+    Assert(controller.CurrentLocation == ExplorerLocation.File("B") && controller.CanGoBack && controller.ErrorMessage is not null, "Invalid address changed accepted state.");
+    Assert(controller.CurrentBreadcrumbs.Count == 2 && controller.CurrentBreadcrumbs[^1].IsCurrent, "Accepted breadcrumbs were not generated.");
+    await controller.NavigateAddressAsync("C");
+    Assert(controller.CurrentLocation == ExplorerLocation.File("C"), "A later address did not supersede the previous state.");
 }
 
 static async Task RunFakeNavigationChecksAsync()
@@ -92,6 +116,27 @@ static async Task RunStaleRequestCheckAsync()
     Assert(controller.CurrentLocation == c && factory.BSnapshot.DisposeCount == 1 && controller.CanGoBack, "The stale navigation was not disposed or changed history.");
 }
 
+static async Task RunStaleAddressRequestCheckAsync()
+{
+    var factory = new BlockingFactory();
+    var hierarchy = new FakeHierarchy();
+    var resolver = new FakeAddressResolver();
+    using var controller = new ExplorerNavigationController(factory, hierarchy, factory, resolver);
+    await controller.InitializeAsync(ExplorerLocation.File("A"));
+
+    Task stale = controller.NavigateAddressAsync("B");
+    factory.BStarted.Wait();
+    Task accepted = controller.NavigateAddressAsync("C");
+    factory.CStarted.Wait();
+    factory.CSnapshot = new FakeSnapshot("C");
+    factory.CGate.Set();
+    await accepted;
+    factory.BSnapshot = new FakeSnapshot("B");
+    factory.BGate.Set();
+    await stale;
+    Assert(controller.CurrentLocation == ExplorerLocation.File("C") && controller.CanGoBack, "Stale address navigation changed the accepted location.");
+}
+
 static async Task RunRealProviderCheckAsync()
 {
     string root = Path.Combine(Path.GetTempPath(), $"OpenExplorer-Navigation-{Environment.ProcessId}-{Stopwatch.GetTimestamp()}");
@@ -102,6 +147,10 @@ static async Task RunRealProviderCheckAsync()
         File.WriteAllText(Path.Combine(root, "Child", "inside.txt"), "inside");
 
         using var engine = new NativeExplorerEngine();
+        ExplorerLocation expanded = engine.ParseAddress("  \"%USERPROFILE%\"  ");
+        Assert(Path.IsPathFullyQualified(expanded.Identifier), "Environment expansion did not produce an absolute location.");
+        IReadOnlyList<ExplorerBreadcrumb> unc = engine.GetBreadcrumbs(ExplorerLocation.File(@"\\server\share\folder"));
+        Assert(unc.Count == 2 && unc[0].Label.Equals(@"\\server\share", StringComparison.OrdinalIgnoreCase) && unc[0].Location.Identifier.EndsWith(@"share\", StringComparison.OrdinalIgnoreCase), "UNC share-root breadcrumbs were not preserved as one ancestor.");
         ILocationSnapshotFactory factory = engine;
         ILocationHierarchy hierarchy = engine;
         using var controller = new ExplorerNavigationController(factory, hierarchy, engine);
@@ -208,6 +257,19 @@ file sealed class FakeFactory : ILocationSnapshotFactory, IExplorerSnapshotViewF
 
     public IExplorerSnapshot CreateSortedView(IExplorerSnapshot source, ExplorerSortOptions options)
         => new FakeSnapshot(((FakeSnapshot)source).Id);
+}
+
+file sealed class FakeAddressResolver : ILocationAddressResolver
+{
+    public ExplorerLocation ParseAddress(string input)
+    {
+        string value = input.Trim().Trim('"').Trim();
+        if (value is not ("A" or "B" or "C")) throw new ArgumentException("Invalid address.");
+        return ExplorerLocation.File(value);
+    }
+
+    public IReadOnlyList<ExplorerBreadcrumb> GetBreadcrumbs(ExplorerLocation location) =>
+        [new("Root", ExplorerLocation.File("A"), location.Identifier == "A"), new(location.Identifier, location, true)];
 }
 
 file sealed class BlockingFactory : ILocationSnapshotFactory, IExplorerSnapshotViewFactory
