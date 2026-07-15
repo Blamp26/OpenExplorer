@@ -71,3 +71,10 @@ public interface ILocationSnapshotFactory
 {
     IExplorerSnapshot OpenSnapshot(ExplorerLocation location);
 }
+
+public interface ILocationHierarchy
+{
+    bool TryGetParent(ExplorerLocation location, out ExplorerLocation parent);
+
+    ExplorerLocation ResolveChild(ExplorerLocation parent, ExplorerItem child);
+}

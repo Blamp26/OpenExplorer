@@ -60,6 +60,12 @@ public sealed class SnapshotFileItemList : IList<SnapshotFileItem>, IReadOnlyLis
 
     public long TotalItemsReceived { get { ThrowIfDisposed(); return totalItemsReceived; } }
 
+    public ExplorerItem GetSourceItem(int index)
+    {
+        ThrowIfDisposed();
+        return this[index].SourceItem;
+    }
+
     public int Count { get { ThrowIfDisposed(); return checked((int)Math.Min(LogicalItemCount, int.MaxValue)); } }
 
     bool ICollection<SnapshotFileItem>.IsReadOnly => true;

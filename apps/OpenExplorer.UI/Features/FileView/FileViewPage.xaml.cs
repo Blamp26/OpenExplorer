@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using OpenExplorer.Application;
+using OpenExplorer.Application.Navigation;
 using OpenExplorer.Contracts;
 using OpenExplorer_UI.Features.Performance;
 
@@ -10,6 +11,7 @@ namespace OpenExplorer_UI.Features.FileView;
 public sealed partial class FileViewPage : Page
 {
     private readonly FrameMetricsCollector frameMetricsCollector = new();
+    private ExplorerNavigationController? navigationController;
 
     public FileViewPage()
     {
@@ -34,23 +36,86 @@ public sealed partial class FileViewPage : Page
 
     public void SetLocation(string path) => LocationText.Text = path;
 
-    public void SetSnapshot(IExplorerSnapshot snapshot) => DetailsView.SetSnapshot(snapshot);
-
-    public void DisposeSnapshot() => DetailsView.DisposeSnapshot();
+    public void SetNavigationController(ExplorerNavigationController controller)
+    {
+        ArgumentNullException.ThrowIfNull(controller);
+        if (navigationController is not null)
+        {
+            navigationController.StateChanged -= OnNavigationStateChanged;
+        }
+        navigationController = controller;
+        navigationController.StateChanged += OnNavigationStateChanged;
+        UpdateNavigationState();
+    }
 
     private void OnLoaded(object sender, RoutedEventArgs args)
     {
         frameMetricsCollector.Start();
+        if (navigationController is not null)
+        {
+            navigationController.StateChanged -= OnNavigationStateChanged;
+            navigationController.StateChanged += OnNavigationStateChanged;
+            UpdateNavigationState();
+        }
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs args)
     {
         frameMetricsCollector.Stop();
+        if (navigationController is not null)
+        {
+            navigationController.StateChanged -= OnNavigationStateChanged;
+        }
     }
 
     private void OnMetricsUpdated(object? sender, FrameMetricsSnapshot snapshot)
     {
         UpdateDiagnostics(snapshot);
+    }
+
+    private async void OnBackClick(object sender, RoutedEventArgs args)
+    {
+        if (navigationController is not null) await navigationController.GoBackAsync();
+    }
+
+    private async void OnForwardClick(object sender, RoutedEventArgs args)
+    {
+        if (navigationController is not null) await navigationController.GoForwardAsync();
+    }
+
+    private async void OnUpClick(object sender, RoutedEventArgs args)
+    {
+        if (navigationController is not null) await navigationController.GoUpAsync();
+    }
+
+    private async void OnDirectoryActivated(ExplorerItem item)
+    {
+        if (navigationController is not null) await navigationController.NavigateIntoAsync(item);
+    }
+
+    private void OnNavigationStateChanged(object? sender, EventArgs args)
+    {
+        UpdateNavigationState();
+    }
+
+    private void UpdateNavigationState()
+    {
+        if (navigationController is null) return;
+        BackButton.IsEnabled = navigationController.CanGoBack;
+        ForwardButton.IsEnabled = navigationController.CanGoForward;
+        UpButton.IsEnabled = navigationController.CanGoUp;
+        NavigationProgress.IsActive = navigationController.IsBusy;
+        NavigationProgress.Visibility = navigationController.IsBusy ? Visibility.Visible : Visibility.Collapsed;
+        NavigationErrorText.Text = navigationController.ErrorMessage ?? string.Empty;
+        if (navigationController.CurrentLocation is { } location)
+        {
+            LocationText.Text = location.Identifier;
+        }
+        if (navigationController.CurrentItems is { } items && !ReferenceEquals(DetailsView.Items, items))
+        {
+            DetailsView.SetItems(items);
+        }
+        UpdateDiagnostics(new FrameMetricsSnapshot(0, 0, 0, 0));
     }
 
     private void UpdateDiagnostics(FrameMetricsSnapshot snapshot)

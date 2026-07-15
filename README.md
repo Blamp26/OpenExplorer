@@ -8,7 +8,7 @@ OpenExplorer is a Windows-only file manager foundation built around WinUI 3 and 
 - C# Contracts, Application, Interop, and Design System projects.
 - Rust 2021 with an MSVC `cdylib` and a narrow C ABI.
 - x64 is the first supported architecture.
-- Navigation, search, indexing, and Shell integration are not implemented yet; startup opens only the current user profile directory.
+- Navigation now supports directory double-click, Back, Forward, and Up from the current user profile. Search, indexing, and Shell integration are not implemented yet.
 
 ## Layout
 

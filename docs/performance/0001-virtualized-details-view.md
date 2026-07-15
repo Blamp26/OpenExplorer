@@ -39,4 +39,4 @@ Measured FPS and working-set values are machine-dependent. This gate does not cl
 
 ## Current limitations
 
-The active data is a snapshot of one local directory and is not refreshed. There is no navigation, watcher, sorting, filtering, selection, activation, icon loading, thumbnail loading, or file operation. The details header and rows share a minimum content width so horizontal scrolling remains available when the window is narrow.
+The active data is a snapshot of one local directory and is replaced by the navigation controller when a directory transition succeeds. There is no watcher, sorting, filtering, selection, file activation, icon loading, thumbnail loading, or file operation. The details header and rows share a minimum content width so horizontal scrolling remains available when the window is narrow.

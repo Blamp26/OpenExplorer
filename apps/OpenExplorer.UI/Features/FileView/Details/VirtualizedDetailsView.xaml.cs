@@ -1,4 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Input;
 using OpenExplorer.Application.Diagnostics;
 using OpenExplorer.Contracts;
 using OpenExplorer_UI.Features.Performance;
@@ -18,23 +20,30 @@ public sealed partial class VirtualizedDetailsView : UserControl
 
     public VirtualizationDiagnostics Diagnostics { get; } = new();
 
-    public void SetSnapshot(IExplorerSnapshot snapshot)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        if (Items is not null)
-        {
-            throw new InvalidOperationException("The snapshot has already been assigned.");
-        }
+    public event Action<ExplorerItem>? DirectoryActivated;
 
-        Items = new SnapshotFileItemList(snapshot);
+    public void SetItems(SnapshotFileItemList items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        Items = items;
         DetailsRepeater.ItemsSource = Items;
+        Diagnostics.Reset();
+        DetailsScrollViewer.ChangeView(null, 0, null);
     }
 
-    public void DisposeSnapshot()
+    public void ClearItems()
     {
-        Items?.Dispose();
         Items = null;
         DetailsRepeater.ItemsSource = null;
+    }
+
+    private void OnRowDoubleTapped(object sender, DoubleTappedRoutedEventArgs args)
+    {
+        if (sender is FrameworkElement { DataContext: SnapshotFileItem item } && item.IsDirectory)
+        {
+            DirectoryActivated?.Invoke(item.SourceItem);
+        }
+        args.Handled = true;
     }
 
     private void OnElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)

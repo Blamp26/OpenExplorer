@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenExplorer.Virtualization
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenExplorer.LocalFileProvider.SmokeTests", "tests\OpenExplorer.LocalFileProvider.SmokeTests\OpenExplorer.LocalFileProvider.SmokeTests.csproj", "{C4A77A1B-46A3-4D3D-A68B-2C9D96CE41B5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenExplorer.Navigation.SmokeTests", "tests\OpenExplorer.Navigation.SmokeTests\OpenExplorer.Navigation.SmokeTests.csproj", "{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -131,6 +133,18 @@ Global
 		{C4A77A1B-46A3-4D3D-A68B-2C9D96CE41B5}.Release|x64.Build.0 = Release|Any CPU
 		{C4A77A1B-46A3-4D3D-A68B-2C9D96CE41B5}.Release|x86.ActiveCfg = Release|Any CPU
 		{C4A77A1B-46A3-4D3D-A68B-2C9D96CE41B5}.Release|x86.Build.0 = Release|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Debug|x64.Build.0 = Debug|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Debug|x86.Build.0 = Debug|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Release|x64.ActiveCfg = Release|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Release|x64.Build.0 = Release|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Release|x86.ActiveCfg = Release|Any CPU
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -144,5 +158,6 @@ Global
 		{2E411EB3-8A9C-4199-8C2E-0B1A8CBD834C} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{0F9ABE76-2212-428E-AC2F-5E3CD725B2BB} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{C4A77A1B-46A3-4D3D-A68B-2C9D96CE41B5} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{AF8A7F0C-2A43-4E5A-8F6D-5C2A4F9D1B7E} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

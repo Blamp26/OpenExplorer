@@ -5,7 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:application="using:OpenExplorer.Application.Diagnostics"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls">
-    <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+    <ScrollViewer x:Name="DetailsScrollViewer" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
         <Grid MinWidth="760">
             <Grid.RowDefinitions>
                 <RowDefinition Height="34" />
@@ -29,7 +29,7 @@
                 </controls:ItemsRepeater.Layout>
                 <controls:ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="application:SnapshotFileItem">
-                        <Grid Height="32" Padding="16,0">
+                        <Grid Height="32" Padding="16,0" DoubleTapped="OnRowDoubleTapped">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition MinWidth="300" Width="*" />
                                 <ColumnDefinition Width="180" />

@@ -1,6 +1,6 @@
 using Microsoft.UI.Xaml;
 using OpenExplorer.Application;
-using OpenExplorer.Contracts;
+using OpenExplorer.Application.Navigation;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -37,18 +37,6 @@ public sealed partial class MainWindow : Window
         ((MainPage)RootFrame.Content).SetInitializationError(message);
     }
 
-    public void SetSnapshot(IExplorerSnapshot snapshot)
-    {
-        ((MainPage)RootFrame.Content).SetSnapshot(snapshot);
-    }
+    public void SetNavigationController(ExplorerNavigationController controller) => ((MainPage)RootFrame.Content).SetNavigationController(controller);
 
-    public void SetLocation(string path) => ((MainPage)RootFrame.Content).SetLocation(path);
-
-    public void DisposeSnapshot()
-    {
-        if (RootFrame.Content is MainPage page)
-        {
-            page.DisposeSnapshot();
-        }
-    }
 }

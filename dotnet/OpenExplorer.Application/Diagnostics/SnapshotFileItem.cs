@@ -7,6 +7,7 @@ public sealed class SnapshotFileItem
 {
     internal SnapshotFileItem(ExplorerItem item)
     {
+        SourceItem = item;
         ItemId = item.ItemId;
         Name = item.Name;
         DateModifiedText = item.DateModified.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
@@ -16,6 +17,8 @@ public sealed class SnapshotFileItem
     }
 
     public ulong ItemId { get; }
+
+    public ExplorerItem SourceItem { get; }
 
     public string Name { get; }
 
