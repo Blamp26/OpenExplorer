@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
 using OpenExplorer.Application;
+using OpenExplorer.Contracts;
 
 namespace OpenExplorer_UI;
 
@@ -19,4 +20,8 @@ public sealed partial class MainPage : Page
     {
         FileView.SetInitializationError(message);
     }
+
+    public void SetSnapshot(IExplorerSnapshot snapshot) => FileView.SetSnapshot(snapshot);
+
+    public void DisposeSnapshot() => FileView.DisposeSnapshot();
 }

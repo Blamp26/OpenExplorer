@@ -1,4 +1,5 @@
 using OpenExplorer.Application;
+using OpenExplorer.Contracts;
 using OpenExplorer.Interop;
 using Microsoft.UI.Xaml;
 
@@ -21,6 +22,8 @@ public partial class App : Application
         {
             _engine = new NativeExplorerEngine();
             ((MainWindow)_window).SetViewModel(new MainViewModel(_engine));
+            IExplorerSnapshot snapshot = _engine.CreateSyntheticSnapshot(100_000);
+            ((MainWindow)_window).SetSnapshot(snapshot);
         }
         catch (Exception exception)
         {
@@ -28,5 +31,16 @@ public partial class App : Application
         }
 
         _window.Activate();
+        _window.Closed += OnWindowClosed;
+    }
+
+    private void OnWindowClosed(object sender, WindowEventArgs args)
+    {
+        if (_window is MainWindow mainWindow)
+        {
+            mainWindow.DisposeSnapshot();
+        }
+        _engine?.Dispose();
+        _engine = null;
     }
 }

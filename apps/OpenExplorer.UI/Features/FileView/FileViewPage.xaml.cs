@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using OpenExplorer.Application;
+using OpenExplorer.Contracts;
 using OpenExplorer_UI.Features.Performance;
 
 namespace OpenExplorer_UI.Features.FileView;
@@ -31,6 +32,10 @@ public sealed partial class FileViewPage : Page
         VersionText.Text = $"Native initialization error: {message}";
     }
 
+    public void SetSnapshot(IExplorerSnapshot snapshot) => DetailsView.SetSnapshot(snapshot);
+
+    public void DisposeSnapshot() => DetailsView.DisposeSnapshot();
+
     private void OnLoaded(object sender, RoutedEventArgs args)
     {
         frameMetricsCollector.Start();
@@ -50,10 +55,17 @@ public sealed partial class FileViewPage : Page
     {
         var source = DetailsView.Items;
         var virtualization = DetailsView.Diagnostics;
-        SourceDiagnosticsText.Text =
-            $"Items: {source.LogicalItemCount:N0}    Realized: {virtualization.CurrentRealizedElementCount} " +
-            $"(peak {virtualization.PeakRealizedElementCount})    Cache: {source.CachedItemCount}/{source.CacheCapacity} " +
-            $"(generated {source.TotalGeneratedItemCount:N0})";
+        if (source is null)
+        {
+            SourceDiagnosticsText.Text = "Items: --    Cached items: --    Cached pages: --    Native range requests: --";
+        }
+        else
+        {
+            SourceDiagnosticsText.Text =
+                $"Items: {source.LogicalItemCount:N0}    Cached items: {source.CurrentCachedItemCount}/{source.MaximumCachedPages * source.PageSize:N0} " +
+                $"   Cached pages: {source.CurrentCachedPages}/{source.MaximumCachedPages}    Native range requests: {source.RangeRequestCount} " +
+                $"   Received: {source.TotalItemsReceived:N0}    Realized: {virtualization.CurrentRealizedElementCount} (peak {virtualization.PeakRealizedElementCount})";
+        }
 
         string fps = snapshot.SampleCount == 0 ? "--" : $"{snapshot.CurrentFps:0.0}";
         string frame = snapshot.SampleCount == 0 ? "--" : $"{snapshot.AverageFrameTimeMilliseconds:0.0}";

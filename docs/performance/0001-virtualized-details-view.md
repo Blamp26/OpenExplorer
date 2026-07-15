@@ -1,12 +1,12 @@
 # Virtualized Details View performance gate
 
-This gate establishes the UI rendering boundary before OpenExplorer connects a real directory snapshot to the application. It exercises the shape and cost of a Details View without filesystem access, native enumeration, or a second data transport.
+This gate establishes the UI rendering boundary before OpenExplorer connects a real directory snapshot to the application. The UI now receives pages from one immutable synthetic Rust snapshot through native ABI v2; there is still no filesystem access or native enumeration.
 
 ## Source
 
-The Application project owns `SyntheticFileItem` and `SyntheticFileItemList`. The default logical count is exactly 100,000 items, but construction performs no item generation. Each item is derived deterministically from its index and is generated only when indexed.
+The Rust engine owns an immutable synthetic source with a logical count of exactly 100,000. Construction stores only the count and does not materialize rows. Requested ranges generate records and one UTF-8 arena only for that page. The Application project owns `SnapshotFileItemList`, which requests 256-item pages and retains at most four pages, or 1,024 display rows by default.
 
-The source retains a FIFO cache with a default capacity of 1,024 items. Its diagnostics expose logical count, current and peak cache size, and total generated item count. The source has no background thread, async runtime, or external dependency.
+The page cache is deterministic LRU and exposes logical count, current and peak cached items, cached pages, native range request count, and total items received. It has no background thread, async runtime, global cache, or external dependency.
 
 ## View virtualization
 
@@ -33,10 +33,10 @@ The non-visual startup check is:
 .\tools\run.ps1 -SmokeTest
 ```
 
-The script uses the project-supported Windows App SDK WinApp development deployment and packaged activation path. Smoke mode confirms process and top-level-window startup, but is not a visual performance benchmark. Observe the details rows while dragging the vertical scrollbar quickly. The diagnostics should show 100,000 logical items, a bounded source cache, and a realized-element count tied to the viewport.
+The script uses the project-supported Windows App SDK WinApp development deployment and packaged activation path. Smoke mode confirms process and top-level-window startup, but is not a visual performance benchmark. Observe the details rows while dragging the vertical scrollbar quickly. The diagnostics should show 100,000 logical items, bounded page/item cache values, native range request count, and a realized-element count tied to the viewport. The visible API line is sourced from the real Rust DLL and reads `Native API version: 2`.
 
 Measured FPS and working-set values are machine-dependent. This gate does not claim a fixed FPS result and does not replace profiling on representative hardware.
 
 ## Current limitations
 
-The data is synthetic and deterministic. There is no filesystem enumeration, snapshot integration, sorting, filtering, selection, activation, icon loading, thumbnail loading, or file operation. The details header and rows share a minimum content width so horizontal scrolling remains available when the window is narrow.
+The data is synthetic and deterministic. There is no filesystem enumeration, filesystem path, watcher, sorting, filtering, selection, activation, icon loading, thumbnail loading, or file operation. The details header and rows share a minimum content width so horizontal scrolling remains available when the window is narrow.

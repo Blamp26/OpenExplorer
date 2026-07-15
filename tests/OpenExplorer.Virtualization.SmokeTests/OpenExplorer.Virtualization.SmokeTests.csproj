@@ -8,5 +8,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\dotnet\OpenExplorer.Application\OpenExplorer.Application.csproj" />
+    <ProjectReference Include="..\..\dotnet\OpenExplorer.Contracts\OpenExplorer.Contracts.csproj" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
 using OpenExplorer.Application.Diagnostics;
+using OpenExplorer.Contracts;
 using OpenExplorer_UI.Features.Performance;
 
 namespace OpenExplorer_UI.Features.FileView.Details;
@@ -13,9 +14,28 @@ public sealed partial class VirtualizedDetailsView : UserControl
         DetailsRepeater.ElementClearing += OnElementClearing;
     }
 
-    public SyntheticFileItemList Items { get; } = new();
+    public SnapshotFileItemList? Items { get; private set; }
 
     public VirtualizationDiagnostics Diagnostics { get; } = new();
+
+    public void SetSnapshot(IExplorerSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (Items is not null)
+        {
+            throw new InvalidOperationException("The snapshot has already been assigned.");
+        }
+
+        Items = new SnapshotFileItemList(snapshot);
+        DetailsRepeater.ItemsSource = Items;
+    }
+
+    public void DisposeSnapshot()
+    {
+        Items?.Dispose();
+        Items = null;
+        DetailsRepeater.ItemsSource = null;
+    }
 
     private void OnElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {

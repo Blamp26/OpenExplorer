@@ -1,4 +1,5 @@
 using OpenExplorer.Application.Diagnostics;
+using OpenExplorer.Contracts;
 
 return RunSmokeTest();
 
@@ -6,84 +7,90 @@ static int RunSmokeTest()
 {
     try
     {
-        var source = new SyntheticFileItemList();
-        Assert(source.LogicalItemCount == 100_000, "The default logical count is not 100,000.");
-        Assert(source.TotalGeneratedItemCount == 0, "Construction generated synthetic rows.");
-
-        int[] requiredIndexes = [0, 1, 999, 50_000, 99_999];
-        foreach (int index in requiredIndexes)
-        {
-            SyntheticFileItem first = source[index];
-            SyntheticFileItem second = new SyntheticFileItemList()[index];
-            Assert(first.Index == index, $"Returned index did not match {index}.");
-            Assert(first.Name == second.Name, $"Name at index {index} was not deterministic.");
-        }
+        using var fake = new FakeSnapshot(100_000);
+        using var source = new SnapshotFileItemList(fake);
+        Assert(source.LogicalItemCount == 100_000, "The logical count was incorrect.");
+        Assert(source.RangeRequestCount == 0, "Construction performed a range request.");
+        _ = source[0];
+        Assert(source.RangeRequestCount == 1 && source.CurrentCachedItemCount == 256, "The first page was not loaded exactly once.");
+        _ = source[1];
+        Assert(source.RangeRequestCount == 1, "A same-page access reloaded the page.");
+        _ = source[256];
+        Assert(source.RangeRequestCount == 2, "The second page was not loaded.");
 
         for (int read = 0; read < 10_000; read++)
         {
-            int index = (read * 7_919) % source.LogicalItemCount;
-            SyntheticFileItem item = source[index];
-            Assert(item.Index == index, $"Deterministic read {read} returned the wrong index.");
-            Assert(item.Name == CreateExpectedName(index), $"Deterministic read {read} returned the wrong name.");
-            Assert(source.CachedItemCount <= source.CacheCapacity, "The cache exceeded its configured capacity.");
+            int index = (read * 7_919) % source.Count;
+            Assert(source[index].ItemId == (ulong)index + 1, $"Read {read} returned a wrong item.");
+            Assert(source.CurrentCachedPages <= 4, "The page cache exceeded four pages.");
+            Assert(source.CurrentCachedItemCount <= 1_024, "The item cache exceeded 1,024 items.");
         }
 
-        Assert(source.PeakCachedItemCount <= 1_024, "The peak cache exceeded 1,024 items.");
+        _ = source[99_999];
+        Assert(source[99_999].Name == "Document 99999", "The final partial page was incorrect.");
+        long requestsBeforeEviction = source.RangeRequestCount;
+        _ = source[0];
+        Assert(source.RangeRequestCount > requestsBeforeEviction, "The least-recently-used page was not reloaded.");
         AssertThrows<ArgumentOutOfRangeException>(() => _ = source[-1]);
         AssertThrows<ArgumentOutOfRangeException>(() => _ = source[100_000]);
-        AssertThrows<ArgumentOutOfRangeException>(() => _ = new SyntheticFileItemList(-1));
-        AssertThrows<ArgumentOutOfRangeException>(() => _ = new SyntheticFileItemList(1, 0));
 
-        var small = new SyntheticFileItemList(logicalItemCount: 3, cacheCapacity: 2);
-        Assert(small.Count == 3, "The custom collection count was incorrect.");
-        Assert(small[2].Index == 2, "The custom collection did not return its final item.");
-        Assert(small.CachedItemCount <= 2, "The custom collection exceeded its cache capacity.");
+        source.Dispose();
+        Assert(fake.DisposeCount == 1, "The snapshot was not disposed exactly once.");
+        AssertThrows<ObjectDisposedException>(() => _ = source[0]);
+        source.Dispose();
+        Assert(fake.DisposeCount == 1, "Snapshot disposal was not idempotent.");
 
-        Console.WriteLine(
-            $"Virtualization source: {source.LogicalItemCount} items, cache <= {source.CacheCapacity} " +
-            $"(generated {source.TotalGeneratedItemCount}, peak {source.PeakCachedItemCount})");
+        Console.WriteLine("Snapshot virtualization source: 100000 items, page 256, cache <= 1024");
         return 0;
     }
     catch (Exception exception)
     {
-        Console.Error.WriteLine($"Virtualization smoke test failed: {exception.Message}");
+        Console.Error.WriteLine($"Snapshot virtualization smoke test failed: {exception.Message}");
         return 1;
     }
 }
 
-static string CreateExpectedName(int index)
-{
-    if (index % 17 == 0)
-    {
-        return $"Folder {index:D5}";
-    }
-
-    string[] extensions = ["txt", "pdf", "jpg", "png", "zip", "exe", "dll", "mp4", ""];
-    string extension = extensions[index % extensions.Length];
-    return extension.Length == 0
-        ? $"Document {index:D5}"
-        : $"Document {index:D5}.{extension}";
-}
-
 static void Assert(bool condition, string message)
 {
-    if (!condition)
-    {
-        throw new InvalidOperationException(message);
-    }
+    if (!condition) throw new InvalidOperationException(message);
 }
 
-static void AssertThrows<TException>(Action action)
-    where TException : Exception
+static void AssertThrows<TException>(Action action) where TException : Exception
 {
-    try
+    try { action(); }
+    catch (TException) { return; }
+    throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
+}
+
+file sealed class FakeSnapshot : IExplorerSnapshot
+{
+    private readonly ulong count;
+    private bool disposed;
+
+    public FakeSnapshot(ulong count) => this.count = count;
+    public int DisposeCount { get; private set; }
+    public ulong Count => count;
+
+    public ExplorerItemBatch GetRange(ulong start, uint requested)
     {
-        action();
-    }
-    catch (TException)
-    {
-        return;
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (start > count) throw new ArgumentOutOfRangeException(nameof(start));
+        uint actual = (uint)Math.Min((ulong)requested, count - start);
+        var items = new ExplorerItem[actual];
+        for (uint offset = 0; offset < actual; offset++)
+        {
+            ulong index = start + offset;
+            items[offset] = new ExplorerItem(index + 1, $"Document {index:00000}", DateTimeOffset.UnixEpoch, 1, ExplorerItemKind.File);
+        }
+        return new ExplorerItemBatch(start, items);
     }
 
-    throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
+    public void Dispose()
+    {
+        if (!disposed)
+        {
+            disposed = true;
+            DisposeCount++;
+        }
+    }
 }

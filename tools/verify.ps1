@@ -30,7 +30,7 @@ $smokeDll = Join-Path $repoRoot 'tests\OpenExplorer.Interop.SmokeTests\bin\Debug
 if (-not (Test-Path -LiteralPath $smokeDll)) { throw "Smoke test output was not found: $smokeDll" }
 $smokeOutput = & dotnet $smokeDll
 if ($LASTEXITCODE -ne 0) { throw "Interop smoke test failed with exit code $LASTEXITCODE." }
-if ($smokeOutput -notcontains 'Native API version: 1') {
+if ($smokeOutput -notcontains 'Native snapshot API version: 2, items: 100000, range paging passed') {
     throw "Smoke test did not report the expected API version. Output: $($smokeOutput -join ' | ')"
 }
 $smokeOutput
@@ -40,7 +40,7 @@ $virtualizationSmokeDll = Join-Path $repoRoot 'tests\OpenExplorer.Virtualization
 if (-not (Test-Path -LiteralPath $virtualizationSmokeDll)) { throw "Virtualization smoke test output was not found: $virtualizationSmokeDll" }
 $virtualizationOutput = & dotnet $virtualizationSmokeDll
 if ($LASTEXITCODE -ne 0) { throw "Virtualization smoke test failed with exit code $LASTEXITCODE." }
-if (-not ($virtualizationOutput -match 'Virtualization source: 100000 items, cache <= 1024')) {
+if (-not ($virtualizationOutput -match 'Snapshot virtualization source: 100000 items, page 256, cache <= 1024')) {
     throw "Virtualization smoke test did not report the expected source summary. Output: $($virtualizationOutput -join ' | ')"
 }
 $virtualizationOutput
