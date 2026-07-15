@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\dotnet\FastExplorer.Contracts\FastExplorer.Contracts.csproj" />
+    <ProjectReference Include="..\..\dotnet\FastExplorer.Interop\FastExplorer.Interop.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <FastExplorerNeedsNative>true</FastExplorerNeedsNative>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

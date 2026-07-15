@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <FastExplorerNativeDll>$(MSBuildThisFileDirectory)artifacts\native\win-x64\$(Configuration)\fast_explorer_ffi.dll</FastExplorerNativeDll>
+    <FastExplorerNativeOutput>$(TargetDir)fast_explorer_ffi.dll</FastExplorerNativeOutput>
+  </PropertyGroup>
+
+  <Target Name="FastExplorerCopyNative" BeforeTargets="CopyFilesToOutputDirectory" Condition="'$(FastExplorerNeedsNative)' == 'true'">
+    <Error Condition="!Exists('$(FastExplorerNativeDll)')" Text="FastExplorer native DLL was not found at $(FastExplorerNativeDll). Build the Rust workspace first." />
+    <Copy SourceFiles="$(FastExplorerNativeDll)" DestinationFiles="$(FastExplorerNativeOutput)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = [
+    "rust/explorer-domain",
+    "rust/explorer-engine",
+    "rust/explorer-ffi",
+    "rust/explorer-protocol",
+    "apps/FastExplorer.Indexer",
+    "apps/FastExplorer.ShellHost",
+]
+
+[workspace.package]
+edition = "2021"

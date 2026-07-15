@@ -1,0 +1,17 @@
+.vs/
+**/bin/
+**/obj/
+target/
+artifacts/
+TestResults/
+*.user
+*.suo
+*.nupkg
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+Generated Files/
+AppPackages/
+BundleArtifacts/
+*.trx
