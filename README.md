@@ -8,7 +8,7 @@ OpenExplorer is a Windows-only file manager foundation built around WinUI 3 and 
 - C# Contracts, Application, Interop, and Design System projects.
 - Rust 2021 with an MSVC `cdylib` and a narrow C ABI.
 - x64 is the first supported architecture.
-- Navigation now supports directory double-click, Back, Forward, and Up from the current user profile. Details columns support native Name, Date modified, Type, and Size sorting with folders-first policy. Virtualized selection uses stable item IDs, including range selection and inverted Select All. Search, indexing, and Shell integration are not implemented yet.
+- Navigation now supports directory double-click, Back, Forward, Up, and provider-agnostic Refresh (including F5) from the current user profile. Details columns support native Name, Date modified, Type, and Size sorting with folders-first policy. Virtualized selection uses stable item IDs, including range selection and inverted Select All. Search, indexing, and Shell integration are not implemented yet.
 
 ## Layout
 
@@ -49,4 +49,4 @@ Smoke mode confirms that the process creates a top-level window and remains aliv
 
 ## Deferred work
 
-Navigation, file operations, search, indexing, Shell integration, previews, thumbnails, and broader file-browser functionality are deliberately deferred. The current startup provider only snapshots the user's profile directory once.
+File operations, search, indexing, Shell integration, previews, thumbnails, filesystem watching, and broader file-browser functionality are deliberately deferred. Refresh is explicit through the toolbar or F5; the current startup provider does not watch the filesystem.

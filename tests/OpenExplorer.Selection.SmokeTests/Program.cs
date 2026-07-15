@@ -6,6 +6,7 @@ try
 {
     RunSelectionTransitions();
     RunInvertedSelectAll();
+    RunRefreshReconciliation();
     RunSortingPreservation();
     RunKeyboardLookupChecks();
     await RunNavigationSelectionChecksAsync();
@@ -72,6 +73,26 @@ static void RunInvertedSelectAll()
     Assert(!selection.IsAllSelected, "Clear did not exit inverted mode.");
 }
 
+static void RunRefreshReconciliation()
+{
+    using var selection = new ExplorerSelectionModel();
+    using var original = new SnapshotFileItemList(new FakeSnapshot(4, [10, 20, 30, 40]));
+    selection.SelectSingle(original.GetSourceItem(0));
+    selection.SelectRange(original, 2, toggleRange: false);
+    Assert(selection.AnchorItemId == 10 && selection.FocusedItemId == 30, "Refresh setup did not establish focus and anchor.");
+
+    using var refreshed = new FakeSnapshot(3, [10, 30, 50]);
+    selection.Reconcile(refreshed);
+    Assert(selection.IsSelected(10) && selection.IsSelected(30) && !selection.IsSelected(20), "Refresh did not prune missing explicit selection.");
+    Assert(selection.AnchorItemId == 10 && selection.FocusedItemId == 30, "Refresh did not preserve valid focus and anchor IDs.");
+    Assert(refreshed.RangeRequestCount == 0, "Refresh reconciliation paged the managed item list.");
+
+    selection.SelectAll(3);
+    selection.Toggle(original.GetSourceItem(2));
+    selection.Reconcile(refreshed);
+    Assert(selection.IsAllSelected && !selection.IsSelected(30) && selection.IsSelected(10), "Refresh did not preserve inverted Select All semantics.");
+}
+
 static void RunSortingPreservation()
 {
     using var original = new SnapshotFileItemList(new FakeSnapshot(4, [10, 20, 30, 40]));
@@ -111,6 +132,7 @@ file sealed class FakeSnapshot : IExplorerSnapshot
     private bool disposed;
 
     public FakeSnapshot(int count, ulong[]? ids = null) => this.ids = ids ?? Enumerable.Range(0, count).Select(index => (ulong)index).ToArray();
+    public int RangeRequestCount { get; private set; }
     public ulong Count => (ulong)ids.Length;
 
     public bool TryGetIndexByItemId(ulong itemId, out ulong index)
@@ -123,6 +145,7 @@ file sealed class FakeSnapshot : IExplorerSnapshot
     public ExplorerItemBatch GetRange(ulong start, uint count)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        RangeRequestCount++;
         if (start > Count || count > Count - start) throw new ArgumentOutOfRangeException();
         var items = new List<ExplorerItem>((int)count);
         for (ulong index = start; index < start + count; index++)

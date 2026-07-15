@@ -118,6 +118,52 @@ public sealed class ExplorerSelectionModel : IDisposable
         RaiseChanged();
     }
 
+    /// <summary>
+    /// Reconciles identity-based selection state with a newly opened snapshot.
+    /// Only IDs already recorded by the selection model are queried; the snapshot
+    /// is never paged or enumerated.
+    /// </summary>
+    public void Reconcile(IExplorerSnapshot snapshot)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        HashSet<ulong> retainedSelected = [];
+        HashSet<ulong> retainedExceptions = [];
+        foreach (ulong itemId in selectedIds)
+        {
+            if (snapshot.TryGetIndexByItemId(itemId, out _)) retainedSelected.Add(itemId);
+        }
+
+        foreach (ulong itemId in deselectedAllIds)
+        {
+            if (snapshot.TryGetIndexByItemId(itemId, out _)) retainedExceptions.Add(itemId);
+        }
+
+        ulong? retainedAnchor = anchorItemId.HasValue && snapshot.TryGetIndexByItemId(anchorItemId.Value, out _)
+            ? anchorItemId
+            : null;
+        ulong? retainedFocus = focusedItemId.HasValue && snapshot.TryGetIndexByItemId(focusedItemId.Value, out _)
+            ? focusedItemId
+            : null;
+
+        bool changed = logicalItemCount != snapshot.Count
+            || !selectedIds.SetEquals(retainedSelected)
+            || !deselectedAllIds.SetEquals(retainedExceptions)
+            || anchorItemId != retainedAnchor
+            || focusedItemId != retainedFocus;
+
+        logicalItemCount = snapshot.Count;
+        selectedIds.Clear();
+        selectedIds.UnionWith(retainedSelected);
+        deselectedAllIds.Clear();
+        deselectedAllIds.UnionWith(retainedExceptions);
+        anchorItemId = retainedAnchor;
+        focusedItemId = retainedFocus;
+
+        if (changed) RaiseChanged();
+    }
+
     public void Clear()
     {
         ThrowIfDisposed();

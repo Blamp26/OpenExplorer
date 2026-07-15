@@ -1,6 +1,7 @@
 //! Engine facade for immutable synthetic and local-directory snapshots.
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -37,8 +38,13 @@ pub struct ExplorerSnapshot {
 }
 
 enum SnapshotData {
-    Synthetic { item_count: u64 },
-    Local { items: Vec<ExplorerItem> },
+    Synthetic {
+        item_count: u64,
+    },
+    Local {
+        items: Vec<ExplorerItem>,
+        item_indices: HashMap<u64, u64>,
+    },
 }
 
 impl ExplorerSnapshot {
@@ -60,7 +66,8 @@ impl ExplorerSnapshot {
             return Err(error(ExplorerErrorCode::NotDirectory));
         }
         let mut items = Vec::new();
-        for (index, entry) in fs::read_dir(path).map_err(map_io_error)?.enumerate() {
+        let mut item_indices = HashMap::new();
+        for entry in fs::read_dir(path).map_err(map_io_error)? {
             let entry = entry.map_err(map_io_error)?;
             let metadata = entry.metadata().map_err(map_io_error)?;
             let kind = if metadata.is_dir() {
@@ -74,10 +81,12 @@ impl ExplorerSnapshot {
             let modified_unix_ms =
                 system_time_to_unix_ms(metadata.modified().map_err(map_io_error)?)?;
             let size = (kind == ExplorerItemKind::File).then_some(metadata.len());
-            let item_id = u64::try_from(index)
-                .ok()
-                .and_then(|value| value.checked_add(1))
-                .ok_or_else(|| error(ExplorerErrorCode::Internal))?;
+            let item_id = local_item_id(&entry.path())?;
+            let source_index =
+                u64::try_from(items.len()).map_err(|_| error(ExplorerErrorCode::Internal))?;
+            if item_indices.insert(item_id, source_index).is_some() {
+                return Err(error(ExplorerErrorCode::Internal));
+            }
             items.push(ExplorerItem {
                 item_id,
                 name: name_lossy.into_owned(),
@@ -88,7 +97,10 @@ impl ExplorerSnapshot {
             });
         }
         Ok(Self {
-            data: Arc::new(SnapshotData::Local { items }),
+            data: Arc::new(SnapshotData::Local {
+                items,
+                item_indices,
+            }),
             order: None,
             inverse_order: None,
         })
@@ -97,14 +109,14 @@ impl ExplorerSnapshot {
     pub fn count(&self) -> u64 {
         match self.data.as_ref() {
             SnapshotData::Synthetic { item_count } => *item_count,
-            SnapshotData::Local { items } => items.len() as u64,
+            SnapshotData::Local { items, .. } => items.len() as u64,
         }
     }
 
     pub fn materialized_item_count(&self) -> usize {
         match self.data.as_ref() {
             SnapshotData::Synthetic { .. } => 0,
-            SnapshotData::Local { items } => items.len(),
+            SnapshotData::Local { items, .. } => items.len(),
         }
     }
 
@@ -154,10 +166,12 @@ impl ExplorerSnapshot {
     }
 
     pub fn find_item_index(&self, item_id: u64) -> Option<u64> {
-        let source_index = item_id.checked_sub(1)?;
-        if source_index >= self.count() {
-            return None;
-        }
+        let source_index = match self.data.as_ref() {
+            SnapshotData::Synthetic { .. } => {
+                item_id.checked_sub(1).filter(|index| *index < self.count())
+            }
+            SnapshotData::Local { item_indices, .. } => item_indices.get(&item_id).copied(),
+        }?;
         self.inverse_order
             .as_ref()
             .map_or(Some(source_index), |inverse| {
@@ -199,7 +213,7 @@ impl ExplorerSnapshot {
         }
         match self.data.as_ref() {
             SnapshotData::Synthetic { .. } => Ok(create_synthetic_item(index)),
-            SnapshotData::Local { items } => items
+            SnapshotData::Local { items, .. } => items
                 .get(usize::try_from(index).map_err(|_| error(ExplorerErrorCode::OutOfRange))?)
                 .cloned()
                 .ok_or_else(|| error(ExplorerErrorCode::OutOfRange)),
@@ -338,6 +352,65 @@ fn map_io_error(error: std::io::Error) -> ExplorerError {
     ExplorerError::new(code, error.raw_os_error(), true)
 }
 
+#[cfg(windows)]
+fn local_item_id(path: &Path) -> Result<u64, ExplorerError> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::Storage::FileSystem::{
+        GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_FLAG_BACKUP_SEMANTICS,
+        FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    };
+
+    // FILE_ID_128 is not available through the legacy information structure.
+    // Its 64-bit file index is nevertheless stable on the volume, including
+    // across same-volume rename. The volume serial is validated to ensure we
+    // never turn an unsupported identity into an arbitrary fallback ID.
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let handle = unsafe {
+        windows_sys::Win32::Storage::FileSystem::CreateFileW(
+            wide.as_ptr(),
+            0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            std::ptr::null(),
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS,
+            std::ptr::null_mut(),
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        return Err(ExplorerError::new(
+            ExplorerErrorCode::Unavailable,
+            Some(unsafe { GetLastError() as i32 }),
+            true,
+        ));
+    }
+    let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    let success = unsafe { GetFileInformationByHandle(handle, &mut info) } != 0;
+    let last_error = if success {
+        None
+    } else {
+        Some(unsafe { GetLastError() as i32 })
+    };
+    unsafe { CloseHandle(handle) };
+    if !success {
+        return Err(ExplorerError::new(
+            ExplorerErrorCode::Unavailable,
+            last_error,
+            true,
+        ));
+    }
+    let file_index = (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow);
+    if info.dwVolumeSerialNumber == 0 || file_index == 0 {
+        return Err(error(ExplorerErrorCode::Unavailable));
+    }
+    Ok(file_index)
+}
+
+#[cfg(not(windows))]
+fn local_item_id(_path: &Path) -> Result<u64, ExplorerError> {
+    Err(error(ExplorerErrorCode::Unavailable))
+}
+
 fn system_time_to_unix_ms(time: SystemTime) -> Result<i64, ExplorerError> {
     let millis: i128 = match time.duration_since(UNIX_EPOCH) {
         Ok(value) => {
@@ -376,6 +449,64 @@ mod tests {
         assert!(snapshot.get_range(4242, 1).unwrap()[0].name.chars().count() > 260);
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn local_ids_survive_sibling_changes_rename_and_sorted_lookup() {
+        let root = std::env::temp_dir().join(format!(
+            "openexplorer-engine-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let alpha = root.join("alpha.txt");
+        let beta = root.join("beta.txt");
+        std::fs::write(&alpha, b"alpha").unwrap();
+        std::fs::write(&beta, b"beta").unwrap();
+
+        let first = ExplorerSnapshot::local_directory(root.to_str().unwrap()).unwrap();
+        let alpha_id = item_named(&first, "alpha.txt").item_id;
+        let beta_id = item_named(&first, "beta.txt").item_id;
+        assert_ne!(alpha_id, beta_id);
+
+        std::fs::write(root.join("added.txt"), b"added").unwrap();
+        std::fs::rename(&alpha, root.join("renamed.txt")).unwrap();
+        let second = ExplorerSnapshot::local_directory(root.to_str().unwrap()).unwrap();
+        assert_eq!(item_named(&second, "renamed.txt").item_id, alpha_id);
+        assert_eq!(item_named(&second, "beta.txt").item_id, beta_id);
+
+        std::fs::remove_file(&beta).unwrap();
+        let third = ExplorerSnapshot::local_directory(root.to_str().unwrap()).unwrap();
+        assert_eq!(item_named(&third, "renamed.txt").item_id, alpha_id);
+        assert_eq!(third.find_item_index(beta_id), None);
+
+        let sorted = third
+            .create_sorted_view(
+                SORT_FIELD_NAME,
+                SORT_DIRECTION_DESCENDING,
+                SORT_FLAG_FOLDERS_FIRST,
+            )
+            .unwrap();
+        for item in sorted.get_range(0, MAX_RANGE_COUNT).unwrap() {
+            let index = sorted.find_item_index(item.item_id).unwrap();
+            assert_eq!(sorted.get_range(index, 1).unwrap()[0], item);
+        }
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(windows)]
+    fn item_named(snapshot: &ExplorerSnapshot, name: &str) -> ExplorerItem {
+        snapshot
+            .get_range(0, MAX_RANGE_COUNT)
+            .unwrap()
+            .into_iter()
+            .find(|item| item.name == name)
+            .unwrap()
+    }
+
     #[test]
     fn sorted_views_are_immutable_independent_and_deterministic() {
         let source = ExplorerSnapshot {
@@ -386,6 +517,7 @@ mod tests {
                     test_item(3, "Bravo", 20, None, ExplorerItemKind::File),
                     test_item(4, "Folder", 5, None, ExplorerItemKind::Directory),
                 ],
+                item_indices: HashMap::from([(1, 0), (2, 1), (3, 2), (4, 3)]),
             }),
             order: None,
             inverse_order: None,

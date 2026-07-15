@@ -51,10 +51,11 @@ public sealed partial class VirtualizedDetailsView : UserControl
     public void SetItems(SnapshotFileItemList items)
     {
         ArgumentNullException.ThrowIfNull(items);
+        double previousOffset = DetailsScrollViewer.VerticalOffset;
         Items = items;
         DetailsRepeater.ItemsSource = Items;
         Diagnostics.Reset();
-        DetailsScrollViewer.ChangeView(null, 0, null);
+        DispatcherQueue.TryEnqueue(() => RestoreViewport(previousOffset));
     }
 
     public void ClearItems()
@@ -226,5 +227,19 @@ public sealed partial class VirtualizedDetailsView : UserControl
             UIElement element = DetailsRepeater.GetOrCreateElement(index.Value);
             element.Focus(FocusState.Keyboard);
         });
+    }
+
+    private void RestoreViewport(double previousOffset)
+    {
+        if (Items is null) return;
+        DetailsScrollViewer.ChangeView(null, Math.Max(0, previousOffset), null);
+        if (selection?.FocusedItemId is not ulong focusedId ||
+            !Items.TryGetIndexByItemId(focusedId, out ulong focusedIndex) ||
+            focusedIndex > int.MaxValue)
+        {
+            return;
+        }
+
+        FocusLogicalIndex((int)focusedIndex);
     }
 }

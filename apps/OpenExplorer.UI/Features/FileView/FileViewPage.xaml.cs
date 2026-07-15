@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using OpenExplorer.Application;
 using OpenExplorer.Application.Navigation;
 using OpenExplorer.Contracts;
@@ -21,6 +22,7 @@ public sealed partial class FileViewPage : Page
         Unloaded += OnUnloaded;
         frameMetricsCollector.MetricsUpdated += OnMetricsUpdated;
         DetailsView.SortRequested += OnSortRequested;
+        AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(OnPageKeyDown), handledEventsToo: true);
         UpdateDiagnostics(new FrameMetricsSnapshot(0, 0, 0, 0));
     }
 
@@ -93,6 +95,21 @@ public sealed partial class FileViewPage : Page
         if (navigationController is not null) await navigationController.GoUpAsync();
     }
 
+    private async void OnRefreshClick(object sender, RoutedEventArgs args) => await RefreshAsync();
+
+    private async void OnPageKeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        if (args.Key != Windows.System.VirtualKey.F5) return;
+        args.Handled = true;
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (navigationController is null || navigationController.IsBusy) return;
+        await navigationController.RefreshAsync();
+    }
+
     private async void OnDirectoryActivated(ExplorerItem item)
     {
         if (navigationController is not null) await navigationController.NavigateIntoAsync(item);
@@ -123,9 +140,10 @@ public sealed partial class FileViewPage : Page
     private void UpdateNavigationState()
     {
         if (navigationController is null) return;
-        BackButton.IsEnabled = navigationController.CanGoBack;
-        ForwardButton.IsEnabled = navigationController.CanGoForward;
-        UpButton.IsEnabled = navigationController.CanGoUp;
+        BackButton.IsEnabled = !navigationController.IsBusy && navigationController.CanGoBack;
+        ForwardButton.IsEnabled = !navigationController.IsBusy && navigationController.CanGoForward;
+        UpButton.IsEnabled = !navigationController.IsBusy && navigationController.CanGoUp;
+        RefreshButton.IsEnabled = !navigationController.IsBusy && navigationController.CurrentLocation is not null;
         NavigationProgress.IsActive = navigationController.IsBusy;
         NavigationProgress.Visibility = navigationController.IsBusy ? Visibility.Visible : Visibility.Collapsed;
         DetailsView.SetSortEnabled(!navigationController.IsBusy);

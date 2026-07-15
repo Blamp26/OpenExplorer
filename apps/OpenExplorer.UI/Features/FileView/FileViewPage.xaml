@@ -28,6 +28,7 @@
             <Button x:Name="BackButton" Content="Back" Click="OnBackClick" AutomationProperties.Name="Back" ToolTipService.ToolTip="Back" />
             <Button x:Name="ForwardButton" Content="Forward" Click="OnForwardClick" AutomationProperties.Name="Forward" ToolTipService.ToolTip="Forward" />
             <Button x:Name="UpButton" Content="Up" Click="OnUpClick" AutomationProperties.Name="Up" ToolTipService.ToolTip="Up" />
+            <Button x:Name="RefreshButton" Content="Refresh" Click="OnRefreshClick" AutomationProperties.Name="Refresh" ToolTipService.ToolTip="Refresh (F5)" />
             <TextBlock
                 x:Name="LocationText"
                 VerticalAlignment="Center"

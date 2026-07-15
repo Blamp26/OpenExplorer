@@ -59,6 +59,7 @@ if (-not (Test-Path -LiteralPath $navigationSmokeDll)) { throw "Navigation smoke
 $navigationOutput = & dotnet $navigationSmokeDll
 if ($LASTEXITCODE -ne 0) { throw "Navigation smoke test failed with exit code $LASTEXITCODE." }
 if ($navigationOutput -notcontains 'Navigation model: history, stale requests, and local folder transitions passed') { throw "Navigation smoke test did not report the expected result. Output: $($navigationOutput -join ' | ')" }
+if ($navigationOutput -notcontains 'Refresh smoke: F5/toolbar refresh keeps valid contents and state') { throw "Refresh smoke test did not report the expected result. Output: $($navigationOutput -join ' | ')" }
 $navigationOutput
 
 Write-Host '[9/13] sorting smoke test'

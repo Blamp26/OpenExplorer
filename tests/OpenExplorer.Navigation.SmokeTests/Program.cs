@@ -8,8 +8,10 @@ try
 {
     await RunFakeNavigationChecksAsync();
     await RunStaleRequestCheckAsync();
+    await RunRefreshChecksAsync();
     await RunRealProviderCheckAsync();
     Console.WriteLine("Navigation model: history, stale requests, and local folder transitions passed");
+    Console.WriteLine("Refresh smoke: F5/toolbar refresh keeps valid contents and state");
     return 0;
 }
 catch (Exception exception)
@@ -124,6 +126,54 @@ static async Task RunRealProviderCheckAsync()
     }
 }
 
+static async Task RunRefreshChecksAsync()
+{
+    var factory = new RefreshFactory();
+    var hierarchy = new FakeHierarchy();
+    using var controller = new ExplorerNavigationController(factory, hierarchy, factory);
+    ExplorerLocation a = ExplorerLocation.File("A");
+    ExplorerLocation b = ExplorerLocation.File("B");
+    await controller.InitializeAsync(a);
+    await controller.NavigateToAsync(b);
+    ExplorerItem first = controller.CurrentItems!.GetSourceItem(0);
+    ExplorerItem second = controller.CurrentItems.GetSourceItem(1);
+    controller.Selection.SelectSingle(first);
+    controller.Selection.Toggle(second);
+    ulong anchor = controller.Selection.AnchorItemId!.Value;
+    ulong focused = controller.Selection.FocusedItemId!.Value;
+    ExplorerSortOptions sort = new(ExplorerSortField.Size, ExplorerSortDirection.Descending, false);
+    await controller.ApplySortAsync(sort);
+
+    factory.NextItems = [first.ItemId, second.ItemId, 99];
+    await controller.RefreshAsync();
+    Assert(controller.CurrentLocation == b && controller.CanGoBack && !controller.CanGoForward, "Refresh changed location or history.");
+    Assert(controller.CurrentSortOptions == sort, "Refresh changed the active sort policy.");
+    Assert(controller.Selection.IsSelected(first.ItemId) && controller.Selection.IsSelected(second.ItemId), "Refresh did not preserve valid selection.");
+    Assert(controller.Selection.AnchorItemId == anchor && controller.Selection.FocusedItemId == focused, "Refresh did not preserve focus and anchor.");
+
+    controller.Selection.SelectAll(controller.CurrentItems!.LogicalItemCount);
+    ulong exceptionId = controller.CurrentItems.GetSourceItem(1).ItemId;
+    controller.Selection.Toggle(controller.CurrentItems.GetSourceItem(1));
+    factory.NextItems = [first.ItemId, exceptionId];
+    await controller.RefreshAsync();
+    Assert(controller.Selection.IsAllSelected && !controller.Selection.IsSelected(exceptionId), "Refresh materialized or lost inverted Select All.");
+
+    SnapshotFileItemList oldItems = controller.CurrentItems!;
+    factory.Fail = true;
+    await controller.RefreshAsync();
+    Assert(ReferenceEquals(oldItems, controller.CurrentItems) && controller.ErrorMessage is not null, "Failed refresh replaced valid contents.");
+    factory.Fail = false;
+
+    factory.BlockNext = true;
+    Task stale = controller.RefreshAsync();
+    factory.Started.Wait();
+    factory.NextItems = [777];
+    await controller.RefreshAsync();
+    factory.Gate.Set();
+    await stale;
+    Assert(controller.CurrentItems!.GetSourceItem(0).ItemId == 777, "Stale refresh changed the accepted refresh result.");
+}
+
 static SnapshotFileItem FindItem(SnapshotFileItemList items, string name)
 {
     for (int index = 0; index < items.Count; index++)
@@ -178,6 +228,60 @@ file sealed class BlockingFactory : ILocationSnapshotFactory, IExplorerSnapshotV
 
     public IExplorerSnapshot CreateSortedView(IExplorerSnapshot source, ExplorerSortOptions options)
         => new FakeSnapshot(((FakeSnapshot)source).Id);
+}
+
+file sealed class RefreshFactory : ILocationSnapshotFactory, IExplorerSnapshotViewFactory
+{
+    public ulong[] NextItems { get; set; } = [1, 2, 3];
+    public bool Fail { get; set; }
+    public bool BlockNext { get; set; }
+    public ManualResetEventSlim Started { get; } = new(false);
+    public ManualResetEventSlim Gate { get; } = new(false);
+
+    public IExplorerSnapshot OpenSnapshot(ExplorerLocation location)
+    {
+        if (Fail) throw new InvalidOperationException("Refresh failure.");
+        if (BlockNext)
+        {
+            BlockNext = false;
+            Started.Set();
+            Gate.Wait();
+        }
+        return new RefreshSnapshot(NextItems);
+    }
+
+    public IExplorerSnapshot CreateSortedView(IExplorerSnapshot source, ExplorerSortOptions options)
+        => new RefreshSnapshot(((RefreshSnapshot)source).Ids);
+}
+
+file sealed class RefreshSnapshot : IExplorerSnapshot
+{
+    private readonly ExplorerItem[] items;
+    private bool disposed;
+
+    public RefreshSnapshot(IEnumerable<ulong> ids)
+    {
+        Ids = ids.ToArray();
+        items = Ids.Select(id => new ExplorerItem(id, $"item-{id}", DateTimeOffset.UnixEpoch, 1, ExplorerItemKind.File)).ToArray();
+    }
+
+    public ulong[] Ids { get; }
+    public ulong Count => (ulong)items.Length;
+
+    public bool TryGetIndexByItemId(ulong itemId, out ulong index)
+    {
+        int found = Array.FindIndex(items, item => item.ItemId == itemId);
+        index = found < 0 ? 0UL : (ulong)found;
+        return found >= 0;
+    }
+
+    public ExplorerItemBatch GetRange(ulong start, uint count)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        return new ExplorerItemBatch(start, items.Skip((int)start).Take((int)count).ToArray());
+    }
+
+    public void Dispose() => disposed = true;
 }
 
 file sealed class FakeHierarchy : ILocationHierarchy

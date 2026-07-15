@@ -130,6 +130,20 @@ public sealed class ExplorerNavigationController : IDisposable
         return OpenAndApplySortAsync(baseSnapshot, options, request);
     }
 
+    public Task RefreshAsync()
+    {
+        ThrowIfDisposed();
+        if (currentLocation is null || currentBaseSnapshot is null || currentItems is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        long request = BeginRequest();
+        ExplorerLocation location = currentLocation;
+        ExplorerSortOptions sortOptions = currentSortOptions;
+        return OpenAndApplyRefreshAsync(location, sortOptions, request);
+    }
+
     public void Dispose()
     {
         if (disposed) return;
@@ -251,6 +265,48 @@ public sealed class ExplorerNavigationController : IDisposable
         {
             replacement?.Dispose();
             sortedView?.Dispose();
+            if (!IsStale(request)) Fail(request, exception);
+        }
+    }
+
+    private async Task OpenAndApplyRefreshAsync(ExplorerLocation location, ExplorerSortOptions sortOptions, long request)
+    {
+        IExplorerSnapshot? baseSnapshot = null;
+        SnapshotFileItemList? replacement = null;
+        try
+        {
+            OpenedSnapshots opened = await Task.Run(() => OpenAndSort(location, sortOptions)).ConfigureAwait(true);
+            baseSnapshot = opened.BaseSnapshot;
+            replacement = new SnapshotFileItemList(opened.SortedView);
+
+            if (IsStale(request))
+            {
+                replacement.Dispose();
+                baseSnapshot.Dispose();
+                return;
+            }
+
+            // Reconcile before publishing. It performs only native ID lookups and
+            // cannot alter the current view if opening or reconciliation fails.
+            Selection.Reconcile(opened.SortedView);
+
+            SnapshotFileItemList? oldItems = currentItems;
+            IExplorerSnapshot? oldBase = currentBaseSnapshot;
+            currentBaseSnapshot = baseSnapshot;
+            baseSnapshot = null;
+            currentItems = replacement;
+            replacement = null;
+            currentSortOptions = sortOptions;
+            errorMessage = null;
+            isBusy = false;
+            StateChanged?.Invoke(this, EventArgs.Empty);
+            oldItems?.Dispose();
+            DisposeOwnedSnapshot(oldBase);
+        }
+        catch (Exception exception)
+        {
+            replacement?.Dispose();
+            baseSnapshot?.Dispose();
             if (!IsStale(request)) Fail(request, exception);
         }
     }
