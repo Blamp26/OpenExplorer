@@ -47,6 +47,7 @@ public sealed partial class FileViewPage : Page
         }
         navigationController = controller;
         navigationController.StateChanged += OnNavigationStateChanged;
+        DetailsView.SetSelection(navigationController.Selection);
         UpdateNavigationState();
     }
 
@@ -55,6 +56,7 @@ public sealed partial class FileViewPage : Page
         frameMetricsCollector.Start();
         if (navigationController is not null)
         {
+            DetailsView.SetSelection(navigationController.Selection);
             navigationController.StateChanged -= OnNavigationStateChanged;
             navigationController.StateChanged += OnNavigationStateChanged;
             UpdateNavigationState();
@@ -64,6 +66,7 @@ public sealed partial class FileViewPage : Page
     private void OnUnloaded(object sender, RoutedEventArgs args)
     {
         frameMetricsCollector.Stop();
+        DetailsView.DetachSelection();
         if (navigationController is not null)
         {
             navigationController.StateChanged -= OnNavigationStateChanged;

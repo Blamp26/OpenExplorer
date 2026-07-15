@@ -14,6 +14,7 @@
                     <SolidColorBrush x:Key="OpenExplorerDetailsRowBackground" Color="Transparent" />
                     <SolidColorBrush x:Key="OpenExplorerDetailsRowHoverBackground" Color="#10000000" />
                     <SolidColorBrush x:Key="OpenExplorerDetailsSelectionBackground" Color="#220078D4" />
+                    <SolidColorBrush x:Key="OpenExplorerDetailsFocusBorder" Color="#0078D4" />
                     <SolidColorBrush x:Key="OpenExplorerDiagnosticsBackground" Color="#08000000" />
                     <SolidColorBrush x:Key="OpenExplorerSubtleSeparatorBrush" Color="#24000000" />
                     <Style x:Key="OpenExplorerPageTitleTextStyle" TargetType="TextBlock"><Setter Property="FontSize" Value="28" /><Setter Property="FontWeight" Value="SemiBold" /></Style>

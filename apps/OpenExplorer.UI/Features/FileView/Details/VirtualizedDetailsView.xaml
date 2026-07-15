@@ -29,7 +29,8 @@
                 </controls:ItemsRepeater.Layout>
                 <controls:ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="application:SnapshotFileItem">
-                        <Grid Height="32" Padding="16,0" DoubleTapped="OnRowDoubleTapped">
+                        <Button Height="32" Padding="16,0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Tapped="OnRowTapped" KeyDown="OnRowKeyDown" DoubleTapped="OnRowDoubleTapped">
+                            <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition MinWidth="300" Width="*" />
                                 <ColumnDefinition Width="180" />
@@ -40,7 +41,8 @@
                             <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{x:Bind DateModifiedText, Mode=OneTime}" />
                             <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{x:Bind TypeText, Mode=OneTime}" TextTrimming="CharacterEllipsis" />
                             <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="{x:Bind SizeText, Mode=OneTime}" TextAlignment="Right" />
-                        </Grid>
+                            </Grid>
+                        </Button>
                     </DataTemplate>
                 </controls:ItemsRepeater.ItemTemplate>
             </controls:ItemsRepeater>

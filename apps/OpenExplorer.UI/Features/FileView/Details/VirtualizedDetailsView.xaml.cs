@@ -1,9 +1,13 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Input;
 using OpenExplorer.Application.Diagnostics;
+using OpenExplorer.Application.Selection;
 using OpenExplorer.Contracts;
 using OpenExplorer_UI.Features.Performance;
+using Windows.System;
+using Windows.UI.Core;
 
 namespace OpenExplorer_UI.Features.FileView.Details;
 
@@ -20,9 +24,29 @@ public sealed partial class VirtualizedDetailsView : UserControl
 
     public VirtualizationDiagnostics Diagnostics { get; } = new();
 
+    private readonly HashSet<FrameworkElement> realizedRows = [];
+    private ExplorerSelectionModel? selection;
+
     public event Action<ExplorerItem>? DirectoryActivated;
 
     public event Action<ExplorerSortField>? SortRequested;
+
+    public void SetSelection(ExplorerSelectionModel model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        if (ReferenceEquals(selection, model)) return;
+        if (selection is not null) selection.Changed -= OnSelectionChanged;
+        selection = model;
+        selection.Changed += OnSelectionChanged;
+        RefreshRealizedRows();
+    }
+
+    public void DetachSelection()
+    {
+        if (selection is null) return;
+        selection.Changed -= OnSelectionChanged;
+        selection = null;
+    }
 
     public void SetItems(SnapshotFileItemList items)
     {
@@ -37,6 +61,7 @@ public sealed partial class VirtualizedDetailsView : UserControl
     {
         Items = null;
         DetailsRepeater.ItemsSource = null;
+        realizedRows.Clear();
     }
 
     public void SetSortOptions(ExplorerSortOptions options)
@@ -68,6 +93,69 @@ public sealed partial class VirtualizedDetailsView : UserControl
         args.Handled = true;
     }
 
+    private void OnRowTapped(object sender, TappedRoutedEventArgs args)
+    {
+        if (selection is null || Items is null || sender is not FrameworkElement row || row.DataContext is not SnapshotFileItem item)
+        {
+            return;
+        }
+
+        int index = DetailsRepeater.GetElementIndex(row);
+        if (index < 0) return;
+        bool control = IsDown(VirtualKey.Control);
+        bool shift = IsDown(VirtualKey.Shift);
+        if (shift)
+        {
+            selection.SelectRange(Items, index, toggleRange: control);
+        }
+        else if (control)
+        {
+            selection.Toggle(item.SourceItem);
+        }
+        else
+        {
+            selection.SelectSingle(item.SourceItem);
+        }
+
+        row.Focus(FocusState.Pointer);
+        args.Handled = true;
+    }
+
+    private void OnRowKeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        if (selection is null || Items is null) return;
+        bool shift = IsDown(VirtualKey.Shift);
+        switch (args.Key)
+        {
+            case VirtualKey.A when IsDown(VirtualKey.Control):
+                selection.SelectAll(Items.LogicalItemCount);
+                args.Handled = true;
+                break;
+            case VirtualKey.Escape:
+                selection.Clear();
+                args.Handled = true;
+                break;
+            case VirtualKey.Left:
+            case VirtualKey.Up:
+                selection.MoveFocus(Items, SelectionMove.Previous, shift);
+                args.Handled = true;
+                break;
+            case VirtualKey.Right:
+            case VirtualKey.Down:
+                selection.MoveFocus(Items, SelectionMove.Next, shift);
+                args.Handled = true;
+                break;
+            case VirtualKey.Home:
+                selection.MoveFocus(Items, SelectionMove.Home, shift);
+                args.Handled = true;
+                break;
+            case VirtualKey.End:
+                selection.MoveFocus(Items, SelectionMove.End, shift);
+                args.Handled = true;
+                break;
+        }
+    }
+
     private void OnSortHeaderClick(object sender, RoutedEventArgs args)
     {
         if (sender is Button { Tag: string tag } && Enum.TryParse(tag, out ExplorerSortField field))
@@ -79,10 +167,43 @@ public sealed partial class VirtualizedDetailsView : UserControl
     private void OnElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         Diagnostics.RecordPrepared();
+        if (args.Element is FrameworkElement element)
+        {
+            realizedRows.Add(element);
+            ApplyRowState(element);
+        }
     }
 
     private void OnElementClearing(ItemsRepeater sender, ItemsRepeaterElementClearingEventArgs args)
     {
         Diagnostics.RecordCleared();
+        if (args.Element is FrameworkElement element)
+        {
+            realizedRows.Remove(element);
+            element.ClearValue(FrameworkElement.TagProperty);
+        }
     }
+
+    private void OnSelectionChanged(object? sender, EventArgs args) => RefreshRealizedRows();
+
+    private void RefreshRealizedRows()
+    {
+        foreach (FrameworkElement row in realizedRows) ApplyRowState(row);
+    }
+
+    private void ApplyRowState(FrameworkElement row)
+    {
+        if (row is not Control control || selection is null || row.DataContext is not SnapshotFileItem item) return;
+        bool selected = selection.IsSelected(item.ItemId);
+        control.Background = selected
+            ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["OpenExplorerDetailsSelectionBackground"]
+            : null;
+        control.BorderBrush = selection.FocusedItemId == item.ItemId
+            ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["OpenExplorerDetailsFocusBorder"]
+            : null;
+        control.BorderThickness = selection.FocusedItemId == item.ItemId ? new Thickness(1, 0, 1, 0) : new Thickness(0);
+    }
+
+    private static bool IsDown(VirtualKey key) =>
+        (InputKeyboardSource.GetKeyStateForCurrentThread(key) & CoreVirtualKeyStates.Down) != 0;
 }

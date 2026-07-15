@@ -1,4 +1,5 @@
 using OpenExplorer.Application.Diagnostics;
+using OpenExplorer.Application.Selection;
 using OpenExplorer.Contracts;
 
 namespace OpenExplorer.Application.Navigation;
@@ -32,6 +33,8 @@ public sealed class ExplorerNavigationController : IDisposable
     }
 
     public event EventHandler? StateChanged;
+
+    public ExplorerSelectionModel Selection { get; } = new();
 
     public ExplorerLocation? CurrentLocation { get { ThrowIfDisposed(); return currentLocation; } }
     public SnapshotFileItemList? CurrentItems { get { ThrowIfDisposed(); return currentItems; } }
@@ -139,6 +142,7 @@ public sealed class ExplorerNavigationController : IDisposable
         DisposeOwnedSnapshot(baseSnapshot);
         backHistory.Clear();
         forwardHistory.Clear();
+        Selection.Dispose();
         isBusy = false;
         GC.SuppressFinalize(this);
     }
@@ -195,6 +199,8 @@ public sealed class ExplorerNavigationController : IDisposable
             currentItems = replacement;
             replacement = null;
             currentSortOptions = sortOptions;
+            Selection.SetLogicalItemCount(currentItems.LogicalItemCount);
+            Selection.Clear();
             errorMessage = null;
             isBusy = false;
             StateChanged?.Invoke(this, EventArgs.Empty);
