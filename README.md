@@ -30,7 +30,22 @@ Set-Location 'D:\source\repos\OpenExplorer'
 .\tools\verify.ps1
 ```
 
-The build compiles the Rust workspace, copies the native DLL into `artifacts`, and builds `OpenExplorer.sln` for `Debug|x64`. It does not launch the application.
+The build compiles the Rust workspace, copies the native DLL into `artifacts`, and builds `OpenExplorer.sln` for `Debug|x64`.
+
+OpenExplorer is a packaged WinUI application. Use the repository launch script so the generated loose package is deployed with the Windows App SDK WinApp tooling and activated with package identity:
+
+```powershell
+Set-Location 'D:\source\repos\OpenExplorer'
+.\tools\run.ps1
+```
+
+The automated startup check is:
+
+```powershell
+.\tools\run.ps1 -SmokeTest
+```
+
+Smoke mode confirms that the process creates a top-level window and remains alive for five seconds, then closes only that launched instance. Direct execution of the packaged executable is not the supported repository workflow because packaged WinUI activation supplies the required package identity and Windows App Runtime registration.
 
 ## Deferred work
 

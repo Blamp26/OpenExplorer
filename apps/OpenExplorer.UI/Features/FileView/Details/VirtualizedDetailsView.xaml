@@ -5,84 +5,41 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:application="using:OpenExplorer.Application.Diagnostics"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls">
-    <ScrollViewer
-        HorizontalScrollBarVisibility="Auto"
-        HorizontalScrollMode="Enabled"
-        VerticalScrollBarVisibility="Auto"
-        VerticalScrollMode="Enabled">
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
         <Grid MinWidth="760">
             <Grid.RowDefinitions>
-                <RowDefinition Height="{StaticResource OpenExplorerDetailsHeaderHeight}" />
+                <RowDefinition Height="34" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-
-            <Grid
-                Grid.Row="0"
-                Padding="16,0"
-                Background="{StaticResource OpenExplorerDetailsHeaderBackground}">
+            <Grid Grid.Row="0" Padding="16,0" Background="#0A000000">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition MinWidth="300" Width="*" />
-                    <ColumnDefinition MinWidth="180" Width="180" />
-                    <ColumnDefinition MinWidth="140" Width="140" />
-                    <ColumnDefinition MinWidth="110" Width="110" />
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="140" />
+                    <ColumnDefinition Width="110" />
                 </Grid.ColumnDefinitions>
-                <TextBlock
-                    Grid.Column="0"
-                    Style="{StaticResource OpenExplorerDetailsHeaderTextStyle}"
-                    Text="Name" />
-                <TextBlock
-                    Grid.Column="1"
-                    Style="{StaticResource OpenExplorerDetailsHeaderTextStyle}"
-                    Text="Date modified" />
-                <TextBlock
-                    Grid.Column="2"
-                    Style="{StaticResource OpenExplorerDetailsHeaderTextStyle}"
-                    Text="Type" />
-                <TextBlock
-                    Grid.Column="3"
-                    Style="{StaticResource OpenExplorerDetailsHeaderTextStyle}"
-                    Text="Size"
-                    TextAlignment="Right" />
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Text="Name" />
+                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Text="Date modified" />
+                <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Text="Type" />
+                <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Text="Size" TextAlignment="Right" />
             </Grid>
-
-            <controls:ItemsRepeater
-                x:Name="DetailsRepeater"
-                Grid.Row="1"
-                ItemsSource="{x:Bind Items, Mode=OneTime}">
+            <controls:ItemsRepeater x:Name="DetailsRepeater" Grid.Row="1" ItemsSource="{x:Bind Items, Mode=OneTime}">
                 <controls:ItemsRepeater.Layout>
-                    <controls:StackLayout Orientation="Vertical" Spacing="0" />
+                    <controls:StackLayout Orientation="Vertical" />
                 </controls:ItemsRepeater.Layout>
                 <controls:ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="application:SyntheticFileItem">
-                        <Grid
-                            Height="{StaticResource OpenExplorerDetailsRowHeight}"
-                            Padding="16,0"
-                            Background="{StaticResource OpenExplorerDetailsRowBackground}">
+                        <Grid Height="32" Padding="16,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition MinWidth="300" Width="*" />
-                                <ColumnDefinition MinWidth="180" Width="180" />
-                                <ColumnDefinition MinWidth="140" Width="140" />
-                                <ColumnDefinition MinWidth="110" Width="110" />
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="140" />
+                                <ColumnDefinition Width="110" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock
-                                Grid.Column="0"
-                                Style="{StaticResource OpenExplorerDetailsRowTextStyle}"
-                                Text="{x:Bind Name, Mode=OneTime}"
-                                TextTrimming="CharacterEllipsis" />
-                            <TextBlock
-                                Grid.Column="1"
-                                Style="{StaticResource OpenExplorerDetailsRowTextStyle}"
-                                Text="{x:Bind DateModifiedText, Mode=OneTime}" />
-                            <TextBlock
-                                Grid.Column="2"
-                                Style="{StaticResource OpenExplorerDetailsRowTextStyle}"
-                                Text="{x:Bind TypeText, Mode=OneTime}"
-                                TextTrimming="CharacterEllipsis" />
-                            <TextBlock
-                                Grid.Column="3"
-                                Style="{StaticResource OpenExplorerDetailsRowTextStyle}"
-                                Text="{x:Bind SizeText, Mode=OneTime}"
-                                TextAlignment="Right" />
+                            <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="{x:Bind Name, Mode=OneTime}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="{x:Bind DateModifiedText, Mode=OneTime}" />
+                            <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="{x:Bind TypeText, Mode=OneTime}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="{x:Bind SizeText, Mode=OneTime}" TextAlignment="Right" />
                         </Grid>
                     </DataTemplate>
                 </controls:ItemsRepeater.ItemTemplate>

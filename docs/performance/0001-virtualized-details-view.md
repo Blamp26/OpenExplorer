@@ -20,7 +20,20 @@ The source retains a FIFO cache with a default capacity of 1,024 items. Its diag
 
 ## Manual check
 
-Open `OpenExplorer.sln` in Visual Studio, select `OpenExplorer.UI` as the startup project, choose `Debug | x64`, and launch using the existing WinUI template workflow. Observe the details rows while dragging the vertical scrollbar quickly. The diagnostics should show 100,000 logical items, a bounded source cache, and a realized-element count tied to the viewport.
+Open `OpenExplorer.sln` in Visual Studio, select `OpenExplorer.UI` as the startup project, choose `Debug | x64`, and launch using the existing WinUI template workflow. The application is packaged, so the normal repository launch command is:
+
+```powershell
+Set-Location 'D:\source\repos\OpenExplorer'
+.\tools\run.ps1
+```
+
+The non-visual startup check is:
+
+```powershell
+.\tools\run.ps1 -SmokeTest
+```
+
+The script uses the project-supported Windows App SDK WinApp development deployment and packaged activation path. Smoke mode confirms process and top-level-window startup, but is not a visual performance benchmark. Observe the details rows while dragging the vertical scrollbar quickly. The diagnostics should show 100,000 logical items, a bounded source cache, and a realized-element count tied to the viewport.
 
 Measured FPS and working-set values are machine-dependent. This gate does not claim a fixed FPS result and does not replace profiling on representative hardware.
 
