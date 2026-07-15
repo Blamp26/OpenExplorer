@@ -7,31 +7,37 @@ public sealed class ExplorerNavigationController : IDisposable
 {
     private readonly ILocationSnapshotFactory snapshotFactory;
     private readonly ILocationHierarchy hierarchy;
+    private readonly IExplorerSnapshotViewFactory viewFactory;
     private readonly List<ExplorerLocation> backHistory = [];
     private readonly List<ExplorerLocation> forwardHistory = [];
+    private readonly HashSet<IExplorerSnapshot> inUseSnapshots = [];
+    private readonly HashSet<IExplorerSnapshot> pendingSnapshotDisposals = [];
     private SnapshotFileItemList? currentItems;
+    private IExplorerSnapshot? currentBaseSnapshot;
     private ExplorerLocation? currentLocation;
+    private ExplorerSortOptions currentSortOptions = ExplorerSortOptions.Default;
     private string? errorMessage;
     private long generation;
     private bool isBusy;
     private bool disposed;
 
-    public ExplorerNavigationController(ILocationSnapshotFactory snapshotFactory, ILocationHierarchy hierarchy)
+    public ExplorerNavigationController(
+        ILocationSnapshotFactory snapshotFactory,
+        ILocationHierarchy hierarchy,
+        IExplorerSnapshotViewFactory viewFactory)
     {
         this.snapshotFactory = snapshotFactory ?? throw new ArgumentNullException(nameof(snapshotFactory));
         this.hierarchy = hierarchy ?? throw new ArgumentNullException(nameof(hierarchy));
+        this.viewFactory = viewFactory ?? throw new ArgumentNullException(nameof(viewFactory));
     }
 
     public event EventHandler? StateChanged;
 
     public ExplorerLocation? CurrentLocation { get { ThrowIfDisposed(); return currentLocation; } }
-
     public SnapshotFileItemList? CurrentItems { get { ThrowIfDisposed(); return currentItems; } }
-
+    public ExplorerSortOptions CurrentSortOptions { get { ThrowIfDisposed(); return currentSortOptions; } }
     public bool CanGoBack { get { ThrowIfDisposed(); return backHistory.Count > 0; } }
-
     public bool CanGoForward { get { ThrowIfDisposed(); return forwardHistory.Count > 0; } }
-
     public bool CanGoUp
     {
         get
@@ -40,27 +46,25 @@ public sealed class ExplorerNavigationController : IDisposable
             return currentLocation is not null && TryGetParent(currentLocation, out _);
         }
     }
-
     public bool IsBusy { get { ThrowIfDisposed(); return isBusy; } }
-
     public string? ErrorMessage { get { ThrowIfDisposed(); return errorMessage; } }
 
     public Task InitializeAsync(ExplorerLocation location)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(location);
-        if (currentLocation is not null || currentItems is not null)
+        if (currentLocation is not null || currentItems is not null || currentBaseSnapshot is not null)
         {
             throw new InvalidOperationException("The navigation controller has already been initialized.");
         }
-        return StartOpenAsync(location, NavigationKind.Initialize);
+        return StartNavigationAsync(location, NavigationKind.Initialize);
     }
 
     public Task NavigateToAsync(ExplorerLocation location)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(location);
-        return StartOpenAsync(location, NavigationKind.Normal);
+        return StartNavigationAsync(location, NavigationKind.Normal);
     }
 
     public Task NavigateIntoAsync(ExplorerItem child)
@@ -76,7 +80,7 @@ public sealed class ExplorerNavigationController : IDisposable
         try
         {
             ExplorerLocation location = hierarchy.ResolveChild(currentLocation, child);
-            return OpenAndApplyAsync(location, NavigationKind.Normal, request);
+            return OpenAndApplyNavigationAsync(location, NavigationKind.Normal, request);
         }
         catch (Exception exception)
         {
@@ -88,76 +92,86 @@ public sealed class ExplorerNavigationController : IDisposable
     public Task GoBackAsync()
     {
         ThrowIfDisposed();
-        if (backHistory.Count == 0)
-        {
-            return Task.CompletedTask;
-        }
+        if (backHistory.Count == 0) return Task.CompletedTask;
         long request = BeginRequest();
-        return OpenAndApplyAsync(backHistory[^1], NavigationKind.Back, request);
+        return OpenAndApplyNavigationAsync(backHistory[^1], NavigationKind.Back, request);
     }
 
     public Task GoForwardAsync()
     {
         ThrowIfDisposed();
-        if (forwardHistory.Count == 0)
-        {
-            return Task.CompletedTask;
-        }
+        if (forwardHistory.Count == 0) return Task.CompletedTask;
         long request = BeginRequest();
-        return OpenAndApplyAsync(forwardHistory[^1], NavigationKind.Forward, request);
+        return OpenAndApplyNavigationAsync(forwardHistory[^1], NavigationKind.Forward, request);
     }
 
     public Task GoUpAsync()
     {
         ThrowIfDisposed();
-        if (currentLocation is null || !TryGetParent(currentLocation, out ExplorerLocation parent))
+        if (currentLocation is null || !TryGetParent(currentLocation, out ExplorerLocation parent)) return Task.CompletedTask;
+        long request = BeginRequest();
+        return OpenAndApplyNavigationAsync(parent, NavigationKind.Normal, request);
+    }
+
+    public Task ApplySortAsync(ExplorerSortOptions options)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(options);
+        if (currentBaseSnapshot is null || currentItems is null || options == currentSortOptions)
         {
             return Task.CompletedTask;
         }
+
         long request = BeginRequest();
-        return OpenAndApplyAsync(parent, NavigationKind.Normal, request);
+        IExplorerSnapshot baseSnapshot = currentBaseSnapshot;
+        return OpenAndApplySortAsync(baseSnapshot, options, request);
     }
 
     public void Dispose()
     {
-        if (disposed)
-        {
-            return;
-        }
-
+        if (disposed) return;
         disposed = true;
         generation++;
         currentItems?.Dispose();
         currentItems = null;
+        IExplorerSnapshot? baseSnapshot = currentBaseSnapshot;
+        currentBaseSnapshot = null;
+        DisposeOwnedSnapshot(baseSnapshot);
         backHistory.Clear();
         forwardHistory.Clear();
         isBusy = false;
         GC.SuppressFinalize(this);
     }
 
-    private Task StartOpenAsync(ExplorerLocation location, NavigationKind kind)
+    private Task StartNavigationAsync(ExplorerLocation location, NavigationKind kind)
     {
         long request = BeginRequest();
-        return OpenAndApplyAsync(location, kind, request);
+        ExplorerSortOptions sortOptions = currentSortOptions;
+        return OpenAndApplyNavigationAsync(location, kind, request, sortOptions);
     }
 
-    private async Task OpenAndApplyAsync(ExplorerLocation location, NavigationKind kind, long request)
+    private Task OpenAndApplyNavigationAsync(ExplorerLocation location, NavigationKind kind, long request)
+        => OpenAndApplyNavigationAsync(location, kind, request, currentSortOptions);
+
+    private async Task OpenAndApplyNavigationAsync(ExplorerLocation location, NavigationKind kind, long request, ExplorerSortOptions sortOptions)
     {
-        IExplorerSnapshot? snapshot = null;
+        IExplorerSnapshot? baseSnapshot = null;
         SnapshotFileItemList? replacement = null;
         try
         {
-            snapshot = await Task.Run(() => snapshotFactory.OpenSnapshot(location)).ConfigureAwait(true);
-            replacement = new SnapshotFileItemList(snapshot);
-            snapshot = null;
+            OpenedSnapshots opened = await Task.Run(() => OpenAndSort(location, sortOptions)).ConfigureAwait(true);
+            baseSnapshot = opened.BaseSnapshot;
+            replacement = new SnapshotFileItemList(opened.SortedView);
 
             if (IsStale(request))
             {
                 replacement.Dispose();
+                baseSnapshot.Dispose();
                 return;
             }
 
             SnapshotFileItemList? oldItems = currentItems;
+            IExplorerSnapshot? oldBase = currentBaseSnapshot;
             ExplorerLocation? oldLocation = currentLocation;
             switch (kind)
             {
@@ -176,8 +190,52 @@ public sealed class ExplorerNavigationController : IDisposable
             }
 
             currentLocation = location;
+            currentBaseSnapshot = baseSnapshot;
+            baseSnapshot = null;
             currentItems = replacement;
             replacement = null;
+            currentSortOptions = sortOptions;
+            errorMessage = null;
+            isBusy = false;
+            StateChanged?.Invoke(this, EventArgs.Empty);
+            oldItems?.Dispose();
+            DisposeOwnedSnapshot(oldBase);
+        }
+        catch (Exception exception)
+        {
+            replacement?.Dispose();
+            baseSnapshot?.Dispose();
+            if (!IsStale(request)) Fail(request, exception);
+        }
+    }
+
+    private async Task OpenAndApplySortAsync(IExplorerSnapshot baseSnapshot, ExplorerSortOptions options, long request)
+    {
+        SnapshotFileItemList? replacement = null;
+        IExplorerSnapshot? sortedView = null;
+        try
+        {
+            AcquireSnapshot(baseSnapshot);
+            try
+            {
+                sortedView = await Task.Run(() => viewFactory.CreateSortedView(baseSnapshot, options)).ConfigureAwait(true);
+            }
+            finally
+            {
+                ReleaseSnapshot(baseSnapshot);
+            }
+            replacement = new SnapshotFileItemList(sortedView ?? throw new InvalidOperationException("The snapshot view factory returned null."));
+            sortedView = null;
+            if (IsStale(request))
+            {
+                replacement.Dispose();
+                return;
+            }
+
+            SnapshotFileItemList? oldItems = currentItems;
+            currentItems = replacement;
+            replacement = null;
+            currentSortOptions = options;
             errorMessage = null;
             isBusy = false;
             StateChanged?.Invoke(this, EventArgs.Empty);
@@ -186,8 +244,23 @@ public sealed class ExplorerNavigationController : IDisposable
         catch (Exception exception)
         {
             replacement?.Dispose();
-            snapshot?.Dispose();
+            sortedView?.Dispose();
             if (!IsStale(request)) Fail(request, exception);
+        }
+    }
+
+    private OpenedSnapshots OpenAndSort(ExplorerLocation location, ExplorerSortOptions options)
+    {
+        IExplorerSnapshot baseSnapshot = snapshotFactory.OpenSnapshot(location);
+        try
+        {
+            IExplorerSnapshot sortedView = viewFactory.CreateSortedView(baseSnapshot, options);
+            return new OpenedSnapshots(baseSnapshot, sortedView);
+        }
+        catch
+        {
+            baseSnapshot.Dispose();
+            throw;
         }
     }
 
@@ -210,6 +283,21 @@ public sealed class ExplorerNavigationController : IDisposable
 
     private bool IsStale(long request) => disposed || request != generation;
 
+    private void AcquireSnapshot(IExplorerSnapshot snapshot) => inUseSnapshots.Add(snapshot);
+
+    private void ReleaseSnapshot(IExplorerSnapshot snapshot)
+    {
+        if (!inUseSnapshots.Remove(snapshot)) return;
+        if (pendingSnapshotDisposals.Remove(snapshot)) snapshot.Dispose();
+    }
+
+    private void DisposeOwnedSnapshot(IExplorerSnapshot? snapshot)
+    {
+        if (snapshot is null) return;
+        if (inUseSnapshots.Contains(snapshot)) pendingSnapshotDisposals.Add(snapshot);
+        else snapshot.Dispose();
+    }
+
     private bool TryGetParent(ExplorerLocation location, out ExplorerLocation parent)
     {
         try { return hierarchy.TryGetParent(location, out parent!); }
@@ -219,4 +307,6 @@ public sealed class ExplorerNavigationController : IDisposable
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 
     private enum NavigationKind { Initialize, Normal, Back, Forward }
+
+    private sealed record OpenedSnapshots(IExplorerSnapshot BaseSnapshot, IExplorerSnapshot SortedView);
 }

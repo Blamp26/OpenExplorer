@@ -2,7 +2,7 @@ using OpenExplorer.Contracts;
 
 namespace OpenExplorer.Interop;
 
-public sealed class NativeExplorerEngine : IExplorerEngine, IDiagnosticSnapshotFactory, ILocationSnapshotFactory, ILocationHierarchy
+public sealed class NativeExplorerEngine : IExplorerEngine, IDiagnosticSnapshotFactory, ILocationSnapshotFactory, ILocationHierarchy, IExplorerSnapshotViewFactory
 {
     private readonly SafeEngineHandle _handle;
     private bool _disposed;
@@ -72,6 +72,42 @@ public sealed class NativeExplorerEngine : IExplorerEngine, IDiagnosticSnapshotF
             }
             if (snapshot == 0) throw new NativeInteropException("fe_engine_open_local_directory_snapshot returned a null handle.");
             return new NativeExplorerSnapshot(new SafeSnapshotHandle(snapshot));
+        }
+    }
+
+    public IExplorerSnapshot CreateSortedView(IExplorerSnapshot source, ExplorerSortOptions options)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(options);
+        if (source is not NativeExplorerSnapshot nativeSource)
+        {
+            throw new NotSupportedException("Sorted native views require a snapshot created by this native engine.");
+        }
+
+        uint field = options.Field switch
+        {
+            ExplorerSortField.Name => 1u,
+            ExplorerSortField.DateModified => 2u,
+            ExplorerSortField.Type => 3u,
+            ExplorerSortField.Size => 4u,
+            _ => throw new ArgumentOutOfRangeException(nameof(options)),
+        };
+        uint direction = options.Direction switch
+        {
+            ExplorerSortDirection.Ascending => 1u,
+            ExplorerSortDirection.Descending => 2u,
+            _ => throw new ArgumentOutOfRangeException(nameof(options)),
+        };
+        uint flags = options.FoldersFirst ? 1u : 0u;
+        unsafe
+        {
+            nint view = 0;
+            NativeStatusExtensions.ThrowIfFailed(
+                NativeMethods.CreateSortedView(nativeSource.GetHandle(), field, direction, flags, &view),
+                "fe_snapshot_create_sorted_view");
+            if (view == 0) throw new NativeInteropException("fe_snapshot_create_sorted_view returned a null handle.");
+            return new NativeExplorerSnapshot(new SafeSnapshotHandle(view));
         }
     }
 

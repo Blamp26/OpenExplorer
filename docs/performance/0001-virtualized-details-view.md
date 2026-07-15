@@ -1,10 +1,10 @@
 # Virtualized Details View performance gate
 
-This gate establishes the UI rendering boundary before broader filesystem integration. The active UI now receives pages from one immutable local-directory Rust snapshot through native ABI v3. A synthetic Rust snapshot remains available for diagnostics and regression tests.
+This gate establishes the UI rendering boundary before broader filesystem integration. The active UI now receives pages from one immutable local-directory Rust snapshot and one native sorted view through native ABI v4. A synthetic Rust snapshot remains available for diagnostics and regression tests.
 
 ## Source
 
-The Rust engine enumerates the current user profile's immediate children once and owns their immutable metadata. Requested ranges generate records and one UTF-8 arena only for that page. The Application project owns `SnapshotFileItemList`, which requests 256-item pages and retains at most four pages, or 1,024 display rows by default. Synthetic construction still stores only a logical count and generates requested ranges lazily.
+The Rust engine enumerates the current user profile's immediate children once and owns their immutable metadata. A sorted view stores a logical permutation over shared immutable data; changing sort does not reopen the directory. Requested ranges generate records and one UTF-8 arena only for that page. The Application project owns `SnapshotFileItemList`, which requests 256-item pages and retains at most four pages, or 1,024 display rows by default. Synthetic construction still stores only a logical count and generates requested ranges lazily.
 
 The page cache is deterministic LRU and exposes logical count, current and peak cached items, cached pages, native range request count, and total items received. It has no background thread, async runtime, global cache, or external dependency.
 
@@ -33,10 +33,10 @@ The non-visual startup check is:
 .\tools\run.ps1 -SmokeTest
 ```
 
-The script uses the project-supported Windows App SDK WinApp development deployment and packaged activation path. Smoke mode confirms process and top-level-window startup, but is not a visual performance benchmark. Observe the details rows while dragging the vertical scrollbar quickly. The diagnostics should show the current profile's actual item count, bounded page/item cache values, native range request count, and a realized-element count tied to the viewport. The visible API line is sourced from the real Rust DLL and reads `Native API version: 3`.
+The script uses the project-supported Windows App SDK WinApp development deployment and packaged activation path. Smoke mode confirms process and top-level-window startup, but is not a visual performance benchmark. Observe the details rows while dragging the vertical scrollbar quickly. The diagnostics should show the current profile's actual item count, bounded page/item cache values, native range request count, and a realized-element count tied to the viewport. The visible API line is sourced from the real Rust DLL and reads `Native API version: 4`.
 
 Measured FPS and working-set values are machine-dependent. This gate does not claim a fixed FPS result and does not replace profiling on representative hardware.
 
 ## Current limitations
 
-The active data is a snapshot of one local directory and is replaced by the navigation controller when a directory transition succeeds. There is no watcher, sorting, filtering, selection, file activation, icon loading, thumbnail loading, or file operation. The details header and rows share a minimum content width so horizontal scrolling remains available when the window is narrow.
+The active data is a base snapshot plus one native sorted view of one local directory and is replaced by the navigation controller when a directory transition succeeds. There is no watcher, filtering, selection, file activation, icon loading, thumbnail loading, or file operation. Sorting is not implemented through LINQ; natural-number sorting, Shell type metadata, and persistence are deferred. The details header and rows share a minimum content width so horizontal scrolling remains available when the window is narrow.

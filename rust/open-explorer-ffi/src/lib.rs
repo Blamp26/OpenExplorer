@@ -7,7 +7,11 @@ use std::slice;
 use std::str;
 
 use open_explorer_domain::{ExplorerErrorCode, ExplorerItem};
-use open_explorer_engine::{ExplorerEngine, ExplorerSnapshot, API_VERSION, MAX_RANGE_COUNT};
+use open_explorer_engine::{
+    ExplorerEngine, ExplorerSnapshot, API_VERSION, MAX_RANGE_COUNT, SORT_DIRECTION_ASCENDING,
+    SORT_DIRECTION_DESCENDING, SORT_FIELD_DATE_MODIFIED, SORT_FIELD_NAME, SORT_FIELD_SIZE,
+    SORT_FIELD_TYPE, SORT_FLAG_FOLDERS_FIRST,
+};
 
 type EngineHandle = c_void;
 type SnapshotHandle = c_void;
@@ -122,6 +126,45 @@ pub unsafe extern "C" fn fe_engine_open_local_directory_snapshot(
             Ok(snapshot) => {
                 unsafe {
                     *output = Box::into_raw(Box::new(snapshot)).cast();
+                }
+                STATUS_OK
+            }
+            Err(error) => error_status(error.code),
+        }
+    })
+}
+
+#[no_mangle]
+/// # Safety
+/// The source is a live snapshot handle and output points to writable storage.
+pub unsafe extern "C" fn fe_snapshot_create_sorted_view(
+    source: *mut SnapshotHandle,
+    sort_field: u32,
+    sort_direction: u32,
+    sort_flags: u32,
+    output: *mut *mut SnapshotHandle,
+) -> u32 {
+    catch_status(|| {
+        if source.is_null() || output.is_null() {
+            return STATUS_NULL_POINTER;
+        }
+        unsafe {
+            *output = std::ptr::null_mut();
+        }
+        if !matches!(
+            sort_field,
+            SORT_FIELD_NAME | SORT_FIELD_DATE_MODIFIED | SORT_FIELD_TYPE | SORT_FIELD_SIZE
+        ) || !matches!(
+            sort_direction,
+            SORT_DIRECTION_ASCENDING | SORT_DIRECTION_DESCENDING
+        ) || sort_flags & !SORT_FLAG_FOLDERS_FIRST != 0
+        {
+            return STATUS_INVALID_ARGUMENT;
+        }
+        match snapshot_ref(source).create_sorted_view(sort_field, sort_direction, sort_flags) {
+            Ok(view) => {
+                unsafe {
+                    *output = Box::into_raw(Box::new(view)).cast();
                 }
                 STATUS_OK
             }
@@ -315,8 +358,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn api_and_layout_are_v3_stable() {
-        assert_eq!(fe_api_version(), 3);
+    fn api_and_layout_are_v4_stable() {
+        assert_eq!(fe_api_version(), 4);
         assert_eq!(size_of::<FeItemRecord>(), 40);
         assert_eq!(offset_of!(FeItemRecord, flags), 36);
     }
@@ -391,6 +434,64 @@ mod tests {
         assert_eq!((count, bytes), (91, 92));
         unsafe {
             fe_snapshot_destroy(snapshot);
+            fe_engine_destroy(engine);
+        }
+    }
+
+    #[test]
+    fn sorted_view_is_independent_and_validates_inputs() {
+        let engine = fe_engine_create();
+        let mut source = std::ptr::null_mut();
+        assert_eq!(
+            unsafe { fe_engine_create_synthetic_snapshot(engine, 64, &mut source) },
+            STATUS_OK
+        );
+        let mut view = std::ptr::null_mut();
+        assert_eq!(
+            unsafe {
+                fe_snapshot_create_sorted_view(
+                    source,
+                    SORT_FIELD_NAME,
+                    SORT_DIRECTION_ASCENDING,
+                    SORT_FLAG_FOLDERS_FIRST,
+                    &mut view,
+                )
+            },
+            STATUS_OK
+        );
+        assert!(!view.is_null());
+        let mut invalid = std::ptr::null_mut();
+        assert_eq!(
+            unsafe {
+                fe_snapshot_create_sorted_view(
+                    source,
+                    99,
+                    SORT_DIRECTION_ASCENDING,
+                    0,
+                    &mut invalid,
+                )
+            },
+            STATUS_INVALID_ARGUMENT
+        );
+        assert!(invalid.is_null());
+        assert_eq!(
+            unsafe {
+                fe_snapshot_create_sorted_view(
+                    std::ptr::null_mut(),
+                    SORT_FIELD_NAME,
+                    SORT_DIRECTION_ASCENDING,
+                    0,
+                    &mut invalid,
+                )
+            },
+            STATUS_NULL_POINTER
+        );
+        unsafe { fe_snapshot_destroy(source) };
+        let mut count = 0;
+        assert_eq!(unsafe { fe_snapshot_count(view, &mut count) }, STATUS_OK);
+        assert_eq!(count, 64);
+        unsafe {
+            fe_snapshot_destroy(view);
             fe_engine_destroy(engine);
         }
     }

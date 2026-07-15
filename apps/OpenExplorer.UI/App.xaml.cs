@@ -24,7 +24,7 @@ public partial class App : Application
         try
         {
             _engine = new NativeExplorerEngine();
-            _navigationController = new ExplorerNavigationController(_engine, _engine);
+            _navigationController = new ExplorerNavigationController(_engine, _engine, _engine);
             ((MainWindow)_window).SetViewModel(new MainViewModel(_engine));
             ((MainWindow)_window).SetNavigationController(_navigationController);
             string profilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);

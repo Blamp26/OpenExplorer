@@ -35,6 +35,7 @@
                 Text="Opening user profile..."
                 TextTrimming="CharacterEllipsis" />
             <ProgressRing x:Name="NavigationProgress" Width="18" Height="18" IsActive="False" Visibility="Collapsed" />
+            <CheckBox x:Name="FoldersFirstCheckBox" Content="Folders first" IsChecked="True" Checked="OnFoldersFirstChanged" Unchecked="OnFoldersFirstChanged" AutomationProperties.Name="Folders first" ToolTipService.ToolTip="Keep folders before files" />
         </StackPanel>
 
         <TextBlock

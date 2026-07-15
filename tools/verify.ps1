@@ -12,38 +12,38 @@ function Invoke-Checked([string]$FilePath, [string[]]$Arguments) {
     }
 }
 
-Write-Host '[1/11] cargo fmt'
+Write-Host '[1/12] cargo fmt'
 Invoke-Checked 'cargo' @('fmt', '--all', '--check')
 
-Write-Host '[2/11] cargo clippy'
+Write-Host '[2/12] cargo clippy'
 Invoke-Checked 'cargo' @('clippy', '--workspace', '--all-targets', '--target', 'x86_64-pc-windows-msvc', '--', '-D', 'warnings')
 
-Write-Host '[3/11] cargo test'
+Write-Host '[3/12] cargo test'
 Invoke-Checked 'cargo' @('test', '--workspace', '--target', 'x86_64-pc-windows-msvc')
 
-Write-Host '[4/11] build.ps1 Debug'
+Write-Host '[4/12] build.ps1 Debug'
 & (Join-Path $PSScriptRoot 'build.ps1') -Configuration Debug
 if ($LASTEXITCODE -ne 0) { throw "build.ps1 failed with exit code $LASTEXITCODE." }
 
-Write-Host '[5/11] native Interop smoke test'
+Write-Host '[5/12] native Interop smoke test'
 $smokeDll = Join-Path $repoRoot 'tests\OpenExplorer.Interop.SmokeTests\bin\Debug\net10.0\OpenExplorer.Interop.SmokeTests.dll'
 if (-not (Test-Path -LiteralPath $smokeDll)) { throw "Smoke test output was not found: $smokeDll" }
 $smokeOutput = & dotnet $smokeDll
 if ($LASTEXITCODE -ne 0) { throw "Interop smoke test failed with exit code $LASTEXITCODE." }
-if ($smokeOutput -notcontains 'Native snapshot API version: 3, items: 100000, range paging passed') {
+if ($smokeOutput -notcontains 'Native snapshot API version: 4, items: 100000, range paging passed') {
     throw "Smoke test did not report the expected API version. Output: $($smokeOutput -join ' | ')"
 }
 $smokeOutput
 
-Write-Host '[6/11] local file provider smoke test'
+Write-Host '[6/12] local file provider smoke test'
 $localSmokeDll = Join-Path $repoRoot 'tests\OpenExplorer.LocalFileProvider.SmokeTests\bin\Debug\net10.0\OpenExplorer.LocalFileProvider.SmokeTests.dll'
 if (-not (Test-Path -LiteralPath $localSmokeDll)) { throw "Local file provider smoke output was not found: $localSmokeDll" }
 $localOutput = & dotnet $localSmokeDll
 if ($LASTEXITCODE -ne 0) { throw "Local file provider smoke test failed with exit code $LASTEXITCODE." }
-if ($localOutput -notcontains 'Local file provider API version: 3, directory snapshot passed') { throw "Local file provider smoke test did not report the expected result. Output: $($localOutput -join ' | ')" }
+if ($localOutput -notcontains 'Local file provider API version: 4, directory snapshot passed') { throw "Local file provider smoke test did not report the expected result. Output: $($localOutput -join ' | ')" }
 $localOutput
 
-Write-Host '[7/11] virtualization source smoke test'
+Write-Host '[7/12] virtualization source smoke test'
 $virtualizationSmokeDll = Join-Path $repoRoot 'tests\OpenExplorer.Virtualization.SmokeTests\bin\Debug\net10.0\OpenExplorer.Virtualization.SmokeTests.dll'
 if (-not (Test-Path -LiteralPath $virtualizationSmokeDll)) { throw "Virtualization smoke test output was not found: $virtualizationSmokeDll" }
 $virtualizationOutput = & dotnet $virtualizationSmokeDll
@@ -53,7 +53,7 @@ if (-not ($virtualizationOutput -match 'Snapshot virtualization source: 100000 i
 }
 $virtualizationOutput
 
-Write-Host '[8/11] navigation smoke test'
+Write-Host '[8/12] navigation smoke test'
 $navigationSmokeDll = Join-Path $repoRoot 'tests\OpenExplorer.Navigation.SmokeTests\bin\Debug\net10.0\OpenExplorer.Navigation.SmokeTests.dll'
 if (-not (Test-Path -LiteralPath $navigationSmokeDll)) { throw "Navigation smoke output was not found: $navigationSmokeDll" }
 $navigationOutput = & dotnet $navigationSmokeDll
@@ -61,13 +61,21 @@ if ($LASTEXITCODE -ne 0) { throw "Navigation smoke test failed with exit code $L
 if ($navigationOutput -notcontains 'Navigation model: history, stale requests, and local folder transitions passed') { throw "Navigation smoke test did not report the expected result. Output: $($navigationOutput -join ' | ')" }
 $navigationOutput
 
-Write-Host '[9/11] packaged launch smoke test'
+Write-Host '[9/12] sorting smoke test'
+$sortingSmokeDll = Join-Path $repoRoot 'tests\OpenExplorer.Sorting.SmokeTests\bin\Debug\net10.0\OpenExplorer.Sorting.SmokeTests.dll'
+if (-not (Test-Path -LiteralPath $sortingSmokeDll)) { throw "Sorting smoke output was not found: $sortingSmokeDll" }
+$sortingOutput = & dotnet $sortingSmokeDll
+if ($LASTEXITCODE -ne 0) { throw "Sorting smoke test failed with exit code $LASTEXITCODE." }
+if ($sortingOutput -notcontains 'Sorting model: native views and controller sort transitions passed') { throw "Sorting smoke test did not report the expected result. Output: $($sortingOutput -join ' | ')" }
+$sortingOutput
+
+Write-Host '[10/12] packaged launch smoke test'
 $runScript = Join-Path $PSScriptRoot 'run.ps1'
 & $runScript -Configuration Debug -SmokeTest
 if ($LASTEXITCODE -ne 0) { throw "Packaged launch smoke test failed with exit code $LASTEXITCODE." }
 
-Write-Host '[10/11] final WinUI solution build (Debug|x64)'
+Write-Host '[11/12] final WinUI solution build (Debug|x64)'
 $msBuild = 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe'
 Invoke-Checked $msBuild @('OpenExplorer.sln', '/m', '/p:Configuration=Debug', '/p:Platform=x64')
-Write-Host '[11/11] verification complete'
+Write-Host '[12/12] verification complete'
 Write-Host 'Verification completed.'

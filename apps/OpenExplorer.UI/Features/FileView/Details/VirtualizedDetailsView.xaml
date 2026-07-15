@@ -18,10 +18,10 @@
                     <ColumnDefinition Width="140" />
                     <ColumnDefinition Width="110" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Text="Name" />
-                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Text="Date modified" />
-                <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Text="Type" />
-                <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Text="Size" TextAlignment="Right" />
+                <Button x:Name="NameHeaderButton" Grid.Column="0" HorizontalAlignment="Left" Click="OnSortHeaderClick" Tag="Name" Content="Name ↑" AutomationProperties.Name="Sort by Name" ToolTipService.ToolTip="Sort by Name" />
+                <Button x:Name="DateModifiedHeaderButton" Grid.Column="1" HorizontalAlignment="Left" Click="OnSortHeaderClick" Tag="DateModified" Content="Date modified" AutomationProperties.Name="Sort by Date modified" ToolTipService.ToolTip="Sort by Date modified" />
+                <Button x:Name="TypeHeaderButton" Grid.Column="2" HorizontalAlignment="Left" Click="OnSortHeaderClick" Tag="Type" Content="Type" AutomationProperties.Name="Sort by Type" ToolTipService.ToolTip="Sort by Type" />
+                <Button x:Name="SizeHeaderButton" Grid.Column="3" HorizontalAlignment="Right" Click="OnSortHeaderClick" Tag="Size" Content="Size" AutomationProperties.Name="Sort by Size" ToolTipService.ToolTip="Sort by Size" />
             </Grid>
             <controls:ItemsRepeater x:Name="DetailsRepeater" Grid.Row="1">
                 <controls:ItemsRepeater.Layout>

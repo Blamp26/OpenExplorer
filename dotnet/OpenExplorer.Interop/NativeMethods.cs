@@ -19,6 +19,9 @@ internal static partial class NativeMethods
     [LibraryImport("open_explorer_ffi", EntryPoint = "fe_engine_open_local_directory_snapshot")]
     internal static unsafe partial uint OpenLocalDirectorySnapshot(nint engine, byte* path, uint pathLength, nint* output);
 
+    [LibraryImport("open_explorer_ffi", EntryPoint = "fe_snapshot_create_sorted_view")]
+    internal static unsafe partial uint CreateSortedView(nint source, uint sortField, uint sortDirection, uint sortFlags, nint* output);
+
     [LibraryImport("open_explorer_ffi", EntryPoint = "fe_snapshot_count")]
     internal static partial uint SnapshotCount(nint snapshot, out ulong count);
 

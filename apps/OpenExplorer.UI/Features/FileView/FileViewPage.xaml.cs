@@ -12,6 +12,7 @@ public sealed partial class FileViewPage : Page
 {
     private readonly FrameMetricsCollector frameMetricsCollector = new();
     private ExplorerNavigationController? navigationController;
+    private bool updatingSortControls;
 
     public FileViewPage()
     {
@@ -19,6 +20,7 @@ public sealed partial class FileViewPage : Page
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         frameMetricsCollector.MetricsUpdated += OnMetricsUpdated;
+        DetailsView.SortRequested += OnSortRequested;
         UpdateDiagnostics(new FrameMetricsSnapshot(0, 0, 0, 0));
     }
 
@@ -93,6 +95,23 @@ public sealed partial class FileViewPage : Page
         if (navigationController is not null) await navigationController.NavigateIntoAsync(item);
     }
 
+    private async void OnSortRequested(ExplorerSortField field)
+    {
+        if (navigationController is null) return;
+        ExplorerSortOptions current = navigationController.CurrentSortOptions;
+        ExplorerSortDirection direction = current.Field == field && current.Direction == ExplorerSortDirection.Ascending
+            ? ExplorerSortDirection.Descending
+            : current.Field == field ? ExplorerSortDirection.Ascending : ExplorerSortDirection.Ascending;
+        await navigationController.ApplySortAsync(new ExplorerSortOptions(field, direction, current.FoldersFirst));
+    }
+
+    private async void OnFoldersFirstChanged(object sender, RoutedEventArgs args)
+    {
+        if (updatingSortControls || navigationController is null) return;
+        ExplorerSortOptions current = navigationController.CurrentSortOptions;
+        await navigationController.ApplySortAsync(new ExplorerSortOptions(current.Field, current.Direction, FoldersFirstCheckBox.IsChecked == true));
+    }
+
     private void OnNavigationStateChanged(object? sender, EventArgs args)
     {
         UpdateNavigationState();
@@ -106,6 +125,12 @@ public sealed partial class FileViewPage : Page
         UpButton.IsEnabled = navigationController.CanGoUp;
         NavigationProgress.IsActive = navigationController.IsBusy;
         NavigationProgress.Visibility = navigationController.IsBusy ? Visibility.Visible : Visibility.Collapsed;
+        DetailsView.SetSortEnabled(!navigationController.IsBusy);
+        DetailsView.SetSortOptions(navigationController.CurrentSortOptions);
+        updatingSortControls = true;
+        FoldersFirstCheckBox.IsEnabled = !navigationController.IsBusy;
+        FoldersFirstCheckBox.IsChecked = navigationController.CurrentSortOptions.FoldersFirst;
+        updatingSortControls = false;
         NavigationErrorText.Text = navigationController.ErrorMessage ?? string.Empty;
         if (navigationController.CurrentLocation is { } location)
         {

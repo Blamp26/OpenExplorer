@@ -15,6 +15,12 @@ public sealed class NativeExplorerSnapshot : IExplorerSnapshot
         this.handle = handle;
     }
 
+    internal nint GetHandle()
+    {
+        ThrowIfDisposed();
+        return handle.DangerousGetHandle();
+    }
+
     public ulong Count
     {
         get

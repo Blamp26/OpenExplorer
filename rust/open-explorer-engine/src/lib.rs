@@ -1,13 +1,23 @@
 //! Engine facade for immutable synthetic and local-directory snapshots.
 
+use std::cmp::Ordering;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use open_explorer_domain::{ExplorerError, ExplorerErrorCode, ExplorerItem, ExplorerItemKind};
 
-pub const API_VERSION: u32 = 3;
+pub const API_VERSION: u32 = 4;
 pub const MAX_RANGE_COUNT: u32 = 4096;
+
+pub const SORT_FIELD_NAME: u32 = 1;
+pub const SORT_FIELD_DATE_MODIFIED: u32 = 2;
+pub const SORT_FIELD_TYPE: u32 = 3;
+pub const SORT_FIELD_SIZE: u32 = 4;
+pub const SORT_DIRECTION_ASCENDING: u32 = 1;
+pub const SORT_DIRECTION_DESCENDING: u32 = 2;
+pub const SORT_FLAG_FOLDERS_FIRST: u32 = 1;
 
 pub struct ExplorerEngine;
 
@@ -21,18 +31,20 @@ impl ExplorerEngine {
 }
 
 pub struct ExplorerSnapshot {
-    source: SnapshotSource,
+    data: Arc<SnapshotData>,
+    order: Option<Arc<Vec<u64>>>,
 }
 
-enum SnapshotSource {
+enum SnapshotData {
     Synthetic { item_count: u64 },
     Local { items: Vec<ExplorerItem> },
 }
 
 impl ExplorerSnapshot {
-    pub const fn synthetic(item_count: u64) -> Self {
+    pub fn synthetic(item_count: u64) -> Self {
         Self {
-            source: SnapshotSource::Synthetic { item_count },
+            data: Arc::new(SnapshotData::Synthetic { item_count }),
+            order: None,
         }
     }
 
@@ -74,22 +86,61 @@ impl ExplorerSnapshot {
             });
         }
         Ok(Self {
-            source: SnapshotSource::Local { items },
+            data: Arc::new(SnapshotData::Local { items }),
+            order: None,
         })
     }
 
     pub fn count(&self) -> u64 {
-        match &self.source {
-            SnapshotSource::Synthetic { item_count } => *item_count,
-            SnapshotSource::Local { items } => items.len() as u64,
+        match self.data.as_ref() {
+            SnapshotData::Synthetic { item_count } => *item_count,
+            SnapshotData::Local { items } => items.len() as u64,
         }
     }
 
-    pub const fn materialized_item_count(&self) -> usize {
-        match &self.source {
-            SnapshotSource::Synthetic { .. } => 0,
-            SnapshotSource::Local { items } => items.len(),
+    pub fn materialized_item_count(&self) -> usize {
+        match self.data.as_ref() {
+            SnapshotData::Synthetic { .. } => 0,
+            SnapshotData::Local { items } => items.len(),
         }
+    }
+
+    pub fn create_sorted_view(
+        &self,
+        field: u32,
+        direction: u32,
+        flags: u32,
+    ) -> Result<Self, ExplorerError> {
+        if !matches!(
+            field,
+            SORT_FIELD_NAME | SORT_FIELD_DATE_MODIFIED | SORT_FIELD_TYPE | SORT_FIELD_SIZE
+        ) || !matches!(
+            direction,
+            SORT_DIRECTION_ASCENDING | SORT_DIRECTION_DESCENDING
+        ) || flags & !SORT_FLAG_FOLDERS_FIRST != 0
+        {
+            return Err(error(ExplorerErrorCode::InvalidArgument));
+        }
+
+        let count =
+            usize::try_from(self.count()).map_err(|_| error(ExplorerErrorCode::Internal))?;
+        if count > isize::MAX as usize {
+            return Err(error(ExplorerErrorCode::Internal));
+        }
+        let mut order = Vec::with_capacity(count);
+        for index in 0..count {
+            order.push(u64::try_from(index).map_err(|_| error(ExplorerErrorCode::Internal))?);
+        }
+        order.sort_by(|left, right| {
+            let left_item = self.item_at(*left).expect("validated snapshot index");
+            let right_item = self.item_at(*right).expect("validated snapshot index");
+            compare_items(&left_item, &right_item, field, direction, flags)
+        });
+
+        Ok(Self {
+            data: Arc::clone(&self.data),
+            order: Some(Arc::new(order)),
+        })
     }
 
     pub fn get_range(
@@ -105,24 +156,118 @@ impl ExplorerSnapshot {
         }
         let available = self.count().saturating_sub(start);
         let actual = u64::from(requested_count).min(available);
-        if let SnapshotSource::Local { items } = &self.source {
-            let start_index =
-                usize::try_from(start).map_err(|_| error(ExplorerErrorCode::OutOfRange))?;
-            let end = start_index
-                .checked_add(
-                    usize::try_from(actual).map_err(|_| error(ExplorerErrorCode::OutOfRange))?,
-                )
-                .ok_or_else(|| error(ExplorerErrorCode::OutOfRange))?;
-            return Ok(items[start_index..end].to_vec());
-        }
         let mut result = Vec::with_capacity(
             usize::try_from(actual).map_err(|_| error(ExplorerErrorCode::Internal))?,
         );
         for offset in 0..actual {
-            result.push(create_synthetic_item(start + offset));
+            let logical_index = start
+                .checked_add(offset)
+                .ok_or_else(|| error(ExplorerErrorCode::OutOfRange))?;
+            let source_index = self.order.as_ref().map_or(logical_index, |order| {
+                order[usize::try_from(logical_index).expect("snapshot index fits order")]
+            });
+            result.push(self.item_at(source_index)?);
         }
         Ok(result)
     }
+
+    fn item_at(&self, index: u64) -> Result<ExplorerItem, ExplorerError> {
+        if index >= self.count() {
+            return Err(error(ExplorerErrorCode::OutOfRange));
+        }
+        match self.data.as_ref() {
+            SnapshotData::Synthetic { .. } => Ok(create_synthetic_item(index)),
+            SnapshotData::Local { items } => items
+                .get(usize::try_from(index).map_err(|_| error(ExplorerErrorCode::OutOfRange))?)
+                .cloned()
+                .ok_or_else(|| error(ExplorerErrorCode::OutOfRange)),
+        }
+    }
+}
+
+fn compare_items(
+    left: &ExplorerItem,
+    right: &ExplorerItem,
+    field: u32,
+    direction: u32,
+    flags: u32,
+) -> Ordering {
+    let folders_first = flags & SORT_FLAG_FOLDERS_FIRST != 0;
+    if folders_first && left.kind != right.kind {
+        return if left.kind == ExplorerItemKind::Directory {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        };
+    }
+
+    let primary = match field {
+        SORT_FIELD_NAME => lower_name(&left.name).cmp(&lower_name(&right.name)),
+        SORT_FIELD_DATE_MODIFIED => left.modified_unix_ms.cmp(&right.modified_unix_ms),
+        SORT_FIELD_TYPE => type_key(left).cmp(&type_key(right)),
+        SORT_FIELD_SIZE => compare_size(left, right, folders_first, direction),
+        _ => Ordering::Equal,
+    };
+    let primary = if field != SORT_FIELD_SIZE && direction == SORT_DIRECTION_DESCENDING {
+        primary.reverse()
+    } else {
+        primary
+    };
+    if primary != Ordering::Equal {
+        return primary;
+    }
+
+    lower_name(&left.name)
+        .cmp(&lower_name(&right.name))
+        .then_with(|| left.name.cmp(&right.name))
+        .then_with(|| left.item_id.cmp(&right.item_id))
+}
+
+fn compare_size(
+    left: &ExplorerItem,
+    right: &ExplorerItem,
+    folders_first: bool,
+    direction: u32,
+) -> Ordering {
+    if folders_first
+        && left.kind == ExplorerItemKind::Directory
+        && right.kind == ExplorerItemKind::Directory
+    {
+        return Ordering::Equal;
+    }
+    match (left.size, right.size) {
+        (Some(left), Some(right)) => {
+            let ordering = left.cmp(&right);
+            if direction == SORT_DIRECTION_DESCENDING {
+                ordering.reverse()
+            } else {
+                ordering
+            }
+        }
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    }
+}
+
+fn lower_name(name: &str) -> String {
+    name.chars().flat_map(char::to_lowercase).collect()
+}
+
+fn type_key(item: &ExplorerItem) -> String {
+    if item.kind == ExplorerItemKind::Directory {
+        return "directory".to_string();
+    }
+    let Some(dot) = item.name.rfind('.') else {
+        return String::new();
+    };
+    if dot == 0 || dot + 1 >= item.name.len() {
+        return String::new();
+    }
+    item.name[dot + 1..]
+        .chars()
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 fn create_synthetic_item(index: u64) -> ExplorerItem {
@@ -207,5 +352,94 @@ mod tests {
         let snapshot = ExplorerSnapshot::synthetic(10_000);
         assert!(snapshot.get_range(42, 1).unwrap()[0].name.contains('é'));
         assert!(snapshot.get_range(4242, 1).unwrap()[0].name.chars().count() > 260);
+    }
+
+    #[test]
+    fn sorted_views_are_immutable_independent_and_deterministic() {
+        let source = ExplorerSnapshot {
+            data: Arc::new(SnapshotData::Local {
+                items: vec![
+                    test_item(1, "zeta.txt", 30, Some(30), ExplorerItemKind::File),
+                    test_item(2, "Alpha.txt", 10, Some(10), ExplorerItemKind::File),
+                    test_item(3, "Bravo", 20, None, ExplorerItemKind::File),
+                    test_item(4, "Folder", 5, None, ExplorerItemKind::Directory),
+                ],
+            }),
+            order: None,
+        };
+        let name_ascending = source
+            .create_sorted_view(
+                SORT_FIELD_NAME,
+                SORT_DIRECTION_ASCENDING,
+                SORT_FLAG_FOLDERS_FIRST,
+            )
+            .unwrap();
+        let name_descending = source
+            .create_sorted_view(
+                SORT_FIELD_NAME,
+                SORT_DIRECTION_DESCENDING,
+                SORT_FLAG_FOLDERS_FIRST,
+            )
+            .unwrap();
+        assert_eq!(
+            names(&name_ascending),
+            ["Folder", "Alpha.txt", "Bravo", "zeta.txt"]
+        );
+        assert_eq!(
+            names(&name_descending),
+            ["Folder", "zeta.txt", "Bravo", "Alpha.txt"]
+        );
+        assert_eq!(names(&source), ["zeta.txt", "Alpha.txt", "Bravo", "Folder"]);
+
+        let size_descending = source
+            .create_sorted_view(SORT_FIELD_SIZE, SORT_DIRECTION_DESCENDING, 0)
+            .unwrap();
+        assert_eq!(
+            names(&size_descending),
+            ["zeta.txt", "Alpha.txt", "Bravo", "Folder"]
+        );
+        let size_ascending = source
+            .create_sorted_view(SORT_FIELD_SIZE, SORT_DIRECTION_ASCENDING, 0)
+            .unwrap();
+        assert_eq!(
+            names(&size_ascending),
+            ["Alpha.txt", "zeta.txt", "Bravo", "Folder"]
+        );
+
+        let view_after_source = source
+            .create_sorted_view(SORT_FIELD_TYPE, SORT_DIRECTION_ASCENDING, 0)
+            .unwrap();
+        drop(source);
+        assert_eq!(view_after_source.count(), 4);
+        assert_eq!(
+            names(&view_after_source),
+            ["Bravo", "Folder", "Alpha.txt", "zeta.txt"]
+        );
+    }
+
+    fn test_item(
+        id: u64,
+        name: &str,
+        modified: i64,
+        size: Option<u64>,
+        kind: ExplorerItemKind,
+    ) -> ExplorerItem {
+        ExplorerItem {
+            item_id: id,
+            name: name.to_string(),
+            modified_unix_ms: modified,
+            size,
+            kind,
+            name_was_lossy: false,
+        }
+    }
+
+    fn names(snapshot: &ExplorerSnapshot) -> Vec<String> {
+        snapshot
+            .get_range(0, 4096)
+            .unwrap()
+            .into_iter()
+            .map(|item| item.name)
+            .collect()
     }
 }

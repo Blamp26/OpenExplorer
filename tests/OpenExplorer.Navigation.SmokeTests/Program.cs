@@ -22,7 +22,7 @@ static async Task RunFakeNavigationChecksAsync()
 {
     var factory = new FakeFactory();
     var hierarchy = new FakeHierarchy();
-    using var controller = new ExplorerNavigationController(factory, hierarchy);
+    using var controller = new ExplorerNavigationController(factory, hierarchy, factory);
     ExplorerLocation a = ExplorerLocation.File("A");
     ExplorerLocation b = ExplorerLocation.File("B");
     ExplorerLocation c = ExplorerLocation.File("C");
@@ -57,7 +57,7 @@ static async Task RunFakeNavigationChecksAsync()
     await controller.NavigateToAsync(a);
     Assert(!controller.CanGoForward, "New navigation did not clear forward history.");
 
-    using var disposedController = new ExplorerNavigationController(factory, hierarchy);
+    using var disposedController = new ExplorerNavigationController(factory, hierarchy, factory);
     await disposedController.InitializeAsync(a);
     FakeSnapshot active = factory.LastCreated!;
     disposedController.Dispose();
@@ -70,7 +70,7 @@ static async Task RunStaleRequestCheckAsync()
 {
     var factory = new BlockingFactory();
     var hierarchy = new FakeHierarchy();
-    using var controller = new ExplorerNavigationController(factory, hierarchy);
+    using var controller = new ExplorerNavigationController(factory, hierarchy, factory);
     ExplorerLocation a = ExplorerLocation.File("A");
     ExplorerLocation b = ExplorerLocation.File("B");
     ExplorerLocation c = ExplorerLocation.File("C");
@@ -102,7 +102,7 @@ static async Task RunRealProviderCheckAsync()
         using var engine = new NativeExplorerEngine();
         ILocationSnapshotFactory factory = engine;
         ILocationHierarchy hierarchy = engine;
-        using var controller = new ExplorerNavigationController(factory, hierarchy);
+        using var controller = new ExplorerNavigationController(factory, hierarchy, engine);
         await controller.InitializeAsync(ExplorerLocation.File(Path.GetFullPath(root)));
         SnapshotFileItem child = FindItem(controller.CurrentItems!, "Child");
         await controller.NavigateIntoAsync(child.SourceItem);
@@ -142,7 +142,7 @@ static void AssertThrows<TException>(Action action) where TException : Exception
     throw new InvalidOperationException($"Expected {typeof(TException).Name}.");
 }
 
-file sealed class FakeFactory : ILocationSnapshotFactory
+file sealed class FakeFactory : ILocationSnapshotFactory, IExplorerSnapshotViewFactory
 {
     public int OpenCount { get; private set; }
     public HashSet<string> Failures { get; } = [];
@@ -155,9 +155,12 @@ file sealed class FakeFactory : ILocationSnapshotFactory
         LastCreated = new FakeSnapshot(location.Identifier);
         return LastCreated;
     }
+
+    public IExplorerSnapshot CreateSortedView(IExplorerSnapshot source, ExplorerSortOptions options)
+        => new FakeSnapshot(((FakeSnapshot)source).Id);
 }
 
-file sealed class BlockingFactory : ILocationSnapshotFactory
+file sealed class BlockingFactory : ILocationSnapshotFactory, IExplorerSnapshotViewFactory
 {
     public ManualResetEventSlim BStarted { get; } = new(false);
     public ManualResetEventSlim CStarted { get; } = new(false);
@@ -172,6 +175,9 @@ file sealed class BlockingFactory : ILocationSnapshotFactory
         if (location.Identifier == "C") { CStarted.Set(); CGate.Wait(); return CSnapshot ?? new FakeSnapshot("C"); }
         return new FakeSnapshot(location.Identifier);
     }
+
+    public IExplorerSnapshot CreateSortedView(IExplorerSnapshot source, ExplorerSortOptions options)
+        => new FakeSnapshot(((FakeSnapshot)source).Id);
 }
 
 file sealed class FakeHierarchy : ILocationHierarchy
@@ -193,9 +199,11 @@ file sealed class FakeSnapshot : IExplorerSnapshot
 
     public FakeSnapshot(string id)
     {
+        Id = id;
         items = [new ExplorerItem(1, id, DateTimeOffset.UnixEpoch, null, ExplorerItemKind.Directory)];
     }
 
+    public string Id { get; }
     public int DisposeCount { get; private set; }
     public ulong Count => (ulong)items.Length;
 

@@ -15,7 +15,7 @@ try
     Directory.CreateDirectory(Path.Combine(root, "Subdirectory"));
 
     using var engine = new NativeExplorerEngine();
-    Assert(engine.ApiVersion == 3, $"Expected API version 3, got {engine.ApiVersion}.");
+    Assert(engine.ApiVersion == 4, $"Expected API version 4, got {engine.ApiVersion}.");
     using IExplorerSnapshot snapshot = engine.OpenSnapshot(ExplorerLocation.File(Path.GetFullPath(root)));
     Assert(snapshot.Count == 6, $"Expected six immediate children, got {snapshot.Count}.");
     ExplorerItem[] items = snapshot.GetRange(0, 4096).Items.ToArray();
@@ -44,7 +44,7 @@ try
         Assert(emptySnapshot.Count == 0 && emptySnapshot.GetRange(0, 10).Items.Count == 0, "Empty directory handling failed.");
     }
 
-    Console.WriteLine("Local file provider API version: 3, directory snapshot passed");
+    Console.WriteLine("Local file provider API version: 4, directory snapshot passed");
 }
 catch (Exception exception)
 {

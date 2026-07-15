@@ -8,6 +8,38 @@ public enum ExplorerItemKind
     Directory = 2,
 }
 
+public enum ExplorerSortField
+{
+    Name = 1,
+    DateModified = 2,
+    Type = 3,
+    Size = 4,
+}
+
+public enum ExplorerSortDirection
+{
+    Ascending = 1,
+    Descending = 2,
+}
+
+public sealed record ExplorerSortOptions
+{
+    public ExplorerSortOptions(ExplorerSortField field, ExplorerSortDirection direction, bool foldersFirst)
+    {
+        if (!Enum.IsDefined(field)) throw new ArgumentOutOfRangeException(nameof(field));
+        if (!Enum.IsDefined(direction)) throw new ArgumentOutOfRangeException(nameof(direction));
+        Field = field;
+        Direction = direction;
+        FoldersFirst = foldersFirst;
+    }
+
+    public ExplorerSortField Field { get; }
+    public ExplorerSortDirection Direction { get; }
+    public bool FoldersFirst { get; }
+
+    public static ExplorerSortOptions Default { get; } = new(ExplorerSortField.Name, ExplorerSortDirection.Ascending, foldersFirst: true);
+}
+
 public enum ExplorerLocationScheme
 {
     File = 1,
@@ -77,4 +109,9 @@ public interface ILocationHierarchy
     bool TryGetParent(ExplorerLocation location, out ExplorerLocation parent);
 
     ExplorerLocation ResolveChild(ExplorerLocation parent, ExplorerItem child);
+}
+
+public interface IExplorerSnapshotViewFactory
+{
+    IExplorerSnapshot CreateSortedView(IExplorerSnapshot source, ExplorerSortOptions options);
 }
