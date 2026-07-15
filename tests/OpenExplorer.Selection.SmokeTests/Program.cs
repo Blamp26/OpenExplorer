@@ -7,8 +7,9 @@ try
     RunSelectionTransitions();
     RunInvertedSelectAll();
     RunSortingPreservation();
+    RunKeyboardLookupChecks();
     await RunNavigationSelectionChecksAsync();
-    Console.WriteLine("Selection model: transitions, inverted select-all, sorting preservation passed");
+    Console.WriteLine("Selection model: transitions, inverted select-all, sorting preservation, keyboard lookup passed");
     return 0;
 }
 catch (Exception exception)
@@ -80,6 +81,25 @@ static void RunSortingPreservation()
     Assert(selection.IsSelected(sorted.GetSourceItem(3).ItemId), "Selection did not survive sorting by ItemId.");
 }
 
+static void RunKeyboardLookupChecks()
+{
+    var snapshot = new LookupSnapshot(100_000);
+    using var source = new SnapshotFileItemList(snapshot);
+    using var selection = new ExplorerSelectionModel();
+    selection.SelectSingle(source.GetSourceItem(50_000));
+    long rangeRequestsBeforeMovement = source.RangeRequestCount;
+
+    Assert(selection.MoveFocus(source, SelectionMove.Next, extendSelection: false) == 50_001, "Arrow movement returned the wrong index.");
+    Assert(selection.MoveFocus(source, SelectionMove.Home, extendSelection: false) == 0, "Home movement returned the wrong index.");
+    Assert(selection.MoveFocus(source, SelectionMove.End, extendSelection: false) == 99_999, "End movement returned the wrong index.");
+    Assert(snapshot.LookupRequests >= 3, "Keyboard movement did not use snapshot lookup.");
+    Assert(source.RangeRequestCount - rangeRequestsBeforeMovement <= 4, "Keyboard remapping caused proportional range reads.");
+    Assert(selection.MoveFocus(source, SelectionMove.Home, extendSelection: true) == 0, "Shift+Home movement returned the wrong index.");
+
+    selection.SelectSingle(new ExplorerItem(999_999, "missing", DateTimeOffset.UnixEpoch, null, ExplorerItemKind.File));
+    Assert(selection.MoveFocus(source, SelectionMove.Next, extendSelection: false) == 0, "Missing focused ID was not remapped predictably.");
+}
+
 static void Assert(bool condition, string message)
 {
     if (!condition) throw new InvalidOperationException(message);
@@ -93,6 +113,13 @@ file sealed class FakeSnapshot : IExplorerSnapshot
     public FakeSnapshot(int count, ulong[]? ids = null) => this.ids = ids ?? Enumerable.Range(0, count).Select(index => (ulong)index).ToArray();
     public ulong Count => (ulong)ids.Length;
 
+    public bool TryGetIndexByItemId(ulong itemId, out ulong index)
+    {
+        int found = Array.IndexOf(ids, itemId);
+        index = found < 0 ? 0UL : (ulong)found;
+        return found >= 0;
+    }
+
     public ExplorerItemBatch GetRange(ulong start, uint count)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -101,6 +128,38 @@ file sealed class FakeSnapshot : IExplorerSnapshot
         for (ulong index = start; index < start + count; index++)
         {
             items.Add(new ExplorerItem(ids[index], $"item-{ids[index]}", DateTimeOffset.UnixEpoch, 1, ExplorerItemKind.File));
+        }
+        return new ExplorerItemBatch(start, items);
+    }
+
+    public void Dispose() => disposed = true;
+}
+
+file sealed class LookupSnapshot : IExplorerSnapshot
+{
+    private readonly ulong count;
+    private bool disposed;
+
+    public LookupSnapshot(ulong count) => this.count = count;
+    public int LookupRequests { get; private set; }
+    public ulong Count => count;
+
+    public bool TryGetIndexByItemId(ulong itemId, out ulong index)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        LookupRequests++;
+        index = itemId == 0 || itemId > count ? 0 : itemId - 1;
+        return itemId > 0 && itemId <= count;
+    }
+
+    public ExplorerItemBatch GetRange(ulong start, uint requestedCount)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        ulong actualCount = Math.Min((ulong)requestedCount, count - start);
+        var items = new List<ExplorerItem>((int)actualCount);
+        for (ulong index = start; index < start + actualCount; index++)
+        {
+            items.Add(new ExplorerItem(index + 1, $"item-{index + 1}", DateTimeOffset.UnixEpoch, 1, ExplorerItemKind.File));
         }
         return new ExplorerItemBatch(start, items);
     }

@@ -66,6 +66,12 @@ public sealed class SnapshotFileItemList : IList<SnapshotFileItem>, IReadOnlyLis
         return this[index].SourceItem;
     }
 
+    public bool TryGetIndexByItemId(ulong itemId, out ulong index)
+    {
+        ThrowIfDisposed();
+        return snapshot.TryGetIndexByItemId(itemId, out index);
+    }
+
     public int Count { get { ThrowIfDisposed(); return checked((int)Math.Min(LogicalItemCount, int.MaxValue)); } }
 
     bool ICollection<SnapshotFileItem>.IsReadOnly => true;

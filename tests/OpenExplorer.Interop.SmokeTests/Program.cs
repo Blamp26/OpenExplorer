@@ -4,7 +4,7 @@ using OpenExplorer.Interop;
 try
 {
     using var engine = new NativeExplorerEngine();
-    if (engine.ApiVersion != 4)
+    if (engine.ApiVersion != 5)
     {
         Console.Error.WriteLine($"Unexpected native API version: {engine.ApiVersion}");
         return 1;
@@ -19,6 +19,9 @@ try
     ExplorerItem first = snapshot.GetRange(0, 4).Items[0];
     ExplorerItem middle = snapshot.GetRange(50_000, 4).Items[0];
     ExplorerItem final = snapshot.GetRange(99_999, 4).Items[0];
+    if (!snapshot.TryGetIndexByItemId(first.ItemId, out ulong firstIndex) || firstIndex != 0) throw new InvalidOperationException("Base snapshot lookup failed.");
+    if (!snapshot.TryGetIndexByItemId(final.ItemId, out ulong finalIndex) || finalIndex != 99_999) throw new InvalidOperationException("Base final lookup failed.");
+    if (snapshot.TryGetIndexByItemId(100_001, out _)) throw new InvalidOperationException("Missing lookup did not return false.");
     if (first.ItemId != 1 || first.Name != "Folder 00000" || middle.ItemId != 50_001 || final.ItemId != 100_000)
     {
         throw new InvalidOperationException("Native snapshot range values were not deterministic.");
@@ -35,7 +38,7 @@ try
         throw new InvalidOperationException("The long native name was truncated.");
     }
 
-    Console.WriteLine("Native snapshot API version: 4, items: 100000, range paging passed");
+    Console.WriteLine("Native snapshot API version: 5, items: 100000, range paging and ID lookup passed");
     return 0;
 }
 catch (Exception exception)

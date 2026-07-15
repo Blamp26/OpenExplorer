@@ -30,7 +30,7 @@ $smokeDll = Join-Path $repoRoot 'tests\OpenExplorer.Interop.SmokeTests\bin\Debug
 if (-not (Test-Path -LiteralPath $smokeDll)) { throw "Smoke test output was not found: $smokeDll" }
 $smokeOutput = & dotnet $smokeDll
 if ($LASTEXITCODE -ne 0) { throw "Interop smoke test failed with exit code $LASTEXITCODE." }
-if ($smokeOutput -notcontains 'Native snapshot API version: 4, items: 100000, range paging passed') {
+if ($smokeOutput -notcontains 'Native snapshot API version: 5, items: 100000, range paging and ID lookup passed') {
     throw "Smoke test did not report the expected API version. Output: $($smokeOutput -join ' | ')"
 }
 $smokeOutput
@@ -40,7 +40,7 @@ $localSmokeDll = Join-Path $repoRoot 'tests\OpenExplorer.LocalFileProvider.Smoke
 if (-not (Test-Path -LiteralPath $localSmokeDll)) { throw "Local file provider smoke output was not found: $localSmokeDll" }
 $localOutput = & dotnet $localSmokeDll
 if ($LASTEXITCODE -ne 0) { throw "Local file provider smoke test failed with exit code $LASTEXITCODE." }
-if ($localOutput -notcontains 'Local file provider API version: 4, directory snapshot passed') { throw "Local file provider smoke test did not report the expected result. Output: $($localOutput -join ' | ')" }
+if ($localOutput -notcontains 'Local file provider API version: 5, directory snapshot passed') { throw "Local file provider smoke test did not report the expected result. Output: $($localOutput -join ' | ')" }
 $localOutput
 
 Write-Host '[7/13] virtualization source smoke test'
@@ -74,7 +74,7 @@ $selectionSmokeDll = Join-Path $repoRoot 'tests\OpenExplorer.Selection.SmokeTest
 if (-not (Test-Path -LiteralPath $selectionSmokeDll)) { throw "Selection smoke output was not found: $selectionSmokeDll" }
 $selectionOutput = & dotnet $selectionSmokeDll
 if ($LASTEXITCODE -ne 0) { throw "Selection smoke test failed with exit code $LASTEXITCODE." }
-if ($selectionOutput -notcontains 'Selection model: transitions, inverted select-all, sorting preservation passed') { throw "Selection smoke test did not report the expected result. Output: $($selectionOutput -join ' | ')" }
+if ($selectionOutput -notcontains 'Selection model: transitions, inverted select-all, sorting preservation, keyboard lookup passed') { throw "Selection smoke test did not report the expected result. Output: $($selectionOutput -join ' | ')" }
 $selectionOutput
 
 Write-Host '[11/13] packaged launch smoke test'

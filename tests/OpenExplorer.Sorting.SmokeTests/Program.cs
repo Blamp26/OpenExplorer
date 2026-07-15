@@ -45,7 +45,7 @@ static void RunNativeSortingChecks()
         File.SetLastWriteTimeUtc(Path.Combine(root, "newer.jpg"), new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 
         using var engine = new NativeExplorerEngine();
-        Assert(engine.ApiVersion == 4, $"Expected API version 4, got {engine.ApiVersion}.");
+        Assert(engine.ApiVersion == 5, $"Expected API version 5, got {engine.ApiVersion}.");
         using IExplorerSnapshot source = engine.OpenSnapshot(ExplorerLocation.File(Path.GetFullPath(root)));
         ExplorerItem[] original = source.GetRange(0, 4096).Items.ToArray();
         Assert(original.Length == 12, "The sorting fixture did not contain the expected entries.");
@@ -186,6 +186,11 @@ file sealed class TrackingSnapshot : IExplorerSnapshot
     public string Id { get; }
     public int DisposeCount { get; private set; }
     public ulong Count => 1;
+    public bool TryGetIndexByItemId(ulong itemId, out ulong index)
+    {
+        index = 0;
+        return itemId == 1;
+    }
     public ExplorerItemBatch GetRange(ulong start, uint count)
     {
         ObjectDisposedException.ThrowIf(disposed, this);

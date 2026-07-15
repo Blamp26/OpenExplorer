@@ -190,6 +190,28 @@ pub unsafe extern "C" fn fe_snapshot_count(snapshot: *mut SnapshotHandle, output
 
 #[no_mangle]
 /// # Safety
+/// Snapshot and output are valid pointers to a live snapshot and writable storage.
+pub unsafe extern "C" fn fe_snapshot_find_item_index(
+    snapshot: *mut SnapshotHandle,
+    item_id: u64,
+    output: *mut u64,
+) -> u32 {
+    catch_status(|| {
+        if snapshot.is_null() || output.is_null() {
+            return STATUS_NULL_POINTER;
+        }
+        match snapshot_ref(snapshot).find_item_index(item_id) {
+            Some(index) => {
+                unsafe { *output = index };
+                STATUS_OK
+            }
+            None => STATUS_NOT_FOUND,
+        }
+    })
+}
+
+#[no_mangle]
+/// # Safety
 /// Output pointers are writable and data pointers are valid for their declared capacities.
 pub unsafe extern "C" fn fe_snapshot_get_range_requirements(
     snapshot: *mut SnapshotHandle,
@@ -358,8 +380,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn api_and_layout_are_v4_stable() {
-        assert_eq!(fe_api_version(), 4);
+    fn api_and_layout_are_v5_stable() {
+        assert_eq!(fe_api_version(), 5);
         assert_eq!(size_of::<FeItemRecord>(), 40);
         assert_eq!(offset_of!(FeItemRecord, flags), 36);
     }
@@ -494,5 +516,53 @@ mod tests {
             fe_snapshot_destroy(view);
             fe_engine_destroy(engine);
         }
+    }
+
+    #[test]
+    fn item_lookup_supports_base_sorted_and_not_found() {
+        let engine = fe_engine_create();
+        let mut source = std::ptr::null_mut();
+        assert_eq!(
+            unsafe { fe_engine_create_synthetic_snapshot(engine, 100_000, &mut source) },
+            STATUS_OK
+        );
+        let mut index = 99;
+        assert_eq!(
+            unsafe { fe_snapshot_find_item_index(source, 100_000, &mut index) },
+            STATUS_OK
+        );
+        assert_eq!(index, 99_999);
+        assert_eq!(
+            unsafe { fe_snapshot_find_item_index(source, 100_001, &mut index) },
+            STATUS_NOT_FOUND
+        );
+        assert_eq!(
+            unsafe { fe_snapshot_find_item_index(source, 1, std::ptr::null_mut()) },
+            STATUS_NULL_POINTER
+        );
+
+        let mut view = std::ptr::null_mut();
+        assert_eq!(
+            unsafe {
+                fe_snapshot_create_sorted_view(
+                    source,
+                    SORT_FIELD_NAME,
+                    SORT_DIRECTION_DESCENDING,
+                    0,
+                    &mut view,
+                )
+            },
+            STATUS_OK
+        );
+        unsafe {
+            fe_snapshot_destroy(source);
+            fe_engine_destroy(engine);
+        }
+        assert_eq!(
+            unsafe { fe_snapshot_find_item_index(view, 100_000, &mut index) },
+            STATUS_OK
+        );
+        assert!(index < 100_000);
+        unsafe { fe_snapshot_destroy(view) };
     }
 }

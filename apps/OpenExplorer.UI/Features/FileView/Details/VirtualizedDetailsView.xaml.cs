@@ -137,20 +137,20 @@ public sealed partial class VirtualizedDetailsView : UserControl
                 break;
             case VirtualKey.Left:
             case VirtualKey.Up:
-                selection.MoveFocus(Items, SelectionMove.Previous, shift);
+                FocusLogicalIndex(selection.MoveFocus(Items, SelectionMove.Previous, shift));
                 args.Handled = true;
                 break;
             case VirtualKey.Right:
             case VirtualKey.Down:
-                selection.MoveFocus(Items, SelectionMove.Next, shift);
+                FocusLogicalIndex(selection.MoveFocus(Items, SelectionMove.Next, shift));
                 args.Handled = true;
                 break;
             case VirtualKey.Home:
-                selection.MoveFocus(Items, SelectionMove.Home, shift);
+                FocusLogicalIndex(selection.MoveFocus(Items, SelectionMove.Home, shift));
                 args.Handled = true;
                 break;
             case VirtualKey.End:
-                selection.MoveFocus(Items, SelectionMove.End, shift);
+                FocusLogicalIndex(selection.MoveFocus(Items, SelectionMove.End, shift));
                 args.Handled = true;
                 break;
         }
@@ -206,4 +206,25 @@ public sealed partial class VirtualizedDetailsView : UserControl
 
     private static bool IsDown(VirtualKey key) =>
         (InputKeyboardSource.GetKeyStateForCurrentThread(key) & CoreVirtualKeyStates.Down) != 0;
+
+    private void FocusLogicalIndex(int? index)
+    {
+        if (!index.HasValue || Items is null) return;
+        double rowTop = 34 + (index.Value * 32.0);
+        double rowBottom = rowTop + 32;
+        double viewportTop = DetailsScrollViewer.VerticalOffset;
+        double viewportBottom = viewportTop + DetailsScrollViewer.ViewportHeight;
+        double targetOffset = rowTop < viewportTop
+            ? rowTop
+            : rowBottom > viewportBottom
+                ? rowBottom - DetailsScrollViewer.ViewportHeight
+                : viewportTop;
+        DetailsScrollViewer.ChangeView(null, Math.Max(0, targetOffset), null);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (Items is null || (uint)index.Value >= (uint)Items.Count) return;
+            UIElement element = DetailsRepeater.GetOrCreateElement(index.Value);
+            element.Focus(FocusState.Keyboard);
+        });
+    }
 }

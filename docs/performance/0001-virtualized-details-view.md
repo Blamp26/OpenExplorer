@@ -33,7 +33,7 @@ The non-visual startup check is:
 .\tools\run.ps1 -SmokeTest
 ```
 
-The script uses the project-supported Windows App SDK WinApp development deployment and packaged activation path. Smoke mode confirms process and top-level-window startup, but is not a visual performance benchmark. Observe the details rows while dragging the vertical scrollbar quickly. The diagnostics should show the current profile's actual item count, bounded page/item cache values, native range request count, and a realized-element count tied to the viewport. The visible API line is sourced from the real Rust DLL and reads `Native API version: 4`.
+The script uses the project-supported Windows App SDK WinApp development deployment and packaged activation path. Smoke mode confirms process and top-level-window startup, but is not a visual performance benchmark. Observe the details rows while dragging the vertical scrollbar quickly. The diagnostics should show the current profile's actual item count, bounded page/item cache values, native range request count, and a realized-element count tied to the viewport. The visible API line is sourced from the real Rust DLL and reads `Native API version: 5`.
 
 Measured FPS and working-set values are machine-dependent. This gate does not claim a fixed FPS result and does not replace profiling on representative hardware.
 

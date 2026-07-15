@@ -25,6 +25,9 @@ internal static partial class NativeMethods
     [LibraryImport("open_explorer_ffi", EntryPoint = "fe_snapshot_count")]
     internal static partial uint SnapshotCount(nint snapshot, out ulong count);
 
+    [LibraryImport("open_explorer_ffi", EntryPoint = "fe_snapshot_find_item_index")]
+    internal static partial uint SnapshotFindItemIndex(nint snapshot, ulong itemId, out ulong index);
+
     [LibraryImport("open_explorer_ffi", EntryPoint = "fe_snapshot_get_range_requirements")]
     internal static partial uint SnapshotGetRangeRequirements(
         nint snapshot,

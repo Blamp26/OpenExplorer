@@ -71,7 +71,9 @@ public sealed class ExplorerSelectionModel : IDisposable
         ArgumentNullException.ThrowIfNull(items);
         if ((uint)clickedIndex >= (uint)items.Count) throw new ArgumentOutOfRangeException(nameof(clickedIndex));
 
-        int anchorIndex = anchorItemId.HasValue ? FindIndex(items, anchorItemId.Value) : -1;
+        int anchorIndex = anchorItemId.HasValue && items.TryGetIndexByItemId(anchorItemId.Value, out ulong anchorLogicalIndex) && anchorLogicalIndex <= int.MaxValue
+            ? (int)anchorLogicalIndex
+            : -1;
         if (anchorIndex < 0) anchorIndex = clickedIndex;
         int first = Math.Min(anchorIndex, clickedIndex);
         int last = Math.Max(anchorIndex, clickedIndex);
@@ -128,12 +130,14 @@ public sealed class ExplorerSelectionModel : IDisposable
         if (changed) RaiseChanged();
     }
 
-    public void MoveFocus(SnapshotFileItemList items, SelectionMove move, bool extendSelection)
+    public int? MoveFocus(SnapshotFileItemList items, SelectionMove move, bool extendSelection)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(items);
-        if (items.Count == 0) return;
-        int currentIndex = focusedItemId.HasValue ? FindIndex(items, focusedItemId.Value) : -1;
+        if (items.Count == 0) return null;
+        int currentIndex = focusedItemId.HasValue && items.TryGetIndexByItemId(focusedItemId.Value, out ulong currentLogicalIndex)
+            ? checked((int)currentLogicalIndex)
+            : -1;
         int target = move switch
         {
             SelectionMove.Home => 0,
@@ -146,10 +150,11 @@ public sealed class ExplorerSelectionModel : IDisposable
         if (extendSelection)
         {
             SelectRange(items, target, toggleRange: false);
-            return;
+            return target;
         }
 
         SelectSingle(items.GetSourceItem(target));
+        return target;
     }
 
     public void Dispose()
@@ -160,15 +165,6 @@ public sealed class ExplorerSelectionModel : IDisposable
         deselectedAllIds.Clear();
         Changed = null;
         GC.SuppressFinalize(this);
-    }
-
-    private static int FindIndex(SnapshotFileItemList items, ulong itemId)
-    {
-        for (int index = 0; index < items.Count; index++)
-        {
-            if (items.GetSourceItem(index).ItemId == itemId) return index;
-        }
-        return -1;
     }
 
     private void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);

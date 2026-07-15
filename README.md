@@ -1,6 +1,6 @@
 # OpenExplorer
 
-OpenExplorer is a Windows-only file manager foundation built around WinUI 3 and a Rust native engine. The packaged WinUI application composes a C# view model over `OpenExplorer.Interop`, which loads native API v4 and pages immutable local-directory Rust snapshots through native sorted views into the virtualized Details View. Synthetic snapshots remain available for diagnostics.
+OpenExplorer is a Windows-only file manager foundation built around WinUI 3 and a Rust native engine. The packaged WinUI application composes a C# view model over `OpenExplorer.Interop`, which loads native API v5 and pages immutable local-directory Rust snapshots through native sorted views into the virtualized Details View. Synthetic snapshots remain available for diagnostics.
 
 ## Stack and status
 

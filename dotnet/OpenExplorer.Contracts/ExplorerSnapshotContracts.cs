@@ -91,6 +91,8 @@ public interface IExplorerSnapshot : IDisposable
 {
     ulong Count { get; }
 
+    bool TryGetIndexByItemId(ulong itemId, out ulong index);
+
     ExplorerItemBatch GetRange(ulong start, uint count);
 }
 

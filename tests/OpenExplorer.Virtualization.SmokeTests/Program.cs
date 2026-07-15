@@ -71,6 +71,12 @@ file sealed class FakeSnapshot : IExplorerSnapshot
     public int DisposeCount { get; private set; }
     public ulong Count => count;
 
+    public bool TryGetIndexByItemId(ulong itemId, out ulong index)
+    {
+        index = itemId == 0 ? 0 : itemId - 1;
+        return itemId > 0 && index < count;
+    }
+
     public ExplorerItemBatch GetRange(ulong start, uint requested)
     {
         ObjectDisposedException.ThrowIf(disposed, this);

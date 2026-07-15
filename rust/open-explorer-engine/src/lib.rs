@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use open_explorer_domain::{ExplorerError, ExplorerErrorCode, ExplorerItem, ExplorerItemKind};
 
-pub const API_VERSION: u32 = 4;
+pub const API_VERSION: u32 = 5;
 pub const MAX_RANGE_COUNT: u32 = 4096;
 
 pub const SORT_FIELD_NAME: u32 = 1;
@@ -33,6 +33,7 @@ impl ExplorerEngine {
 pub struct ExplorerSnapshot {
     data: Arc<SnapshotData>,
     order: Option<Arc<Vec<u64>>>,
+    inverse_order: Option<Arc<Vec<u64>>>,
 }
 
 enum SnapshotData {
@@ -45,6 +46,7 @@ impl ExplorerSnapshot {
         Self {
             data: Arc::new(SnapshotData::Synthetic { item_count }),
             order: None,
+            inverse_order: None,
         }
     }
 
@@ -88,6 +90,7 @@ impl ExplorerSnapshot {
         Ok(Self {
             data: Arc::new(SnapshotData::Local { items }),
             order: None,
+            inverse_order: None,
         })
     }
 
@@ -137,10 +140,29 @@ impl ExplorerSnapshot {
             compare_items(&left_item, &right_item, field, direction, flags)
         });
 
+        let mut inverse_order = vec![0_u64; count];
+        for (logical_index, source_index) in order.iter().copied().enumerate() {
+            inverse_order[usize::try_from(source_index).expect("snapshot index fits order")] =
+                u64::try_from(logical_index).map_err(|_| error(ExplorerErrorCode::Internal))?;
+        }
+
         Ok(Self {
             data: Arc::clone(&self.data),
             order: Some(Arc::new(order)),
+            inverse_order: Some(Arc::new(inverse_order)),
         })
+    }
+
+    pub fn find_item_index(&self, item_id: u64) -> Option<u64> {
+        let source_index = item_id.checked_sub(1)?;
+        if source_index >= self.count() {
+            return None;
+        }
+        self.inverse_order
+            .as_ref()
+            .map_or(Some(source_index), |inverse| {
+                inverse.get(usize::try_from(source_index).ok()?).copied()
+            })
     }
 
     pub fn get_range(
@@ -366,6 +388,7 @@ mod tests {
                 ],
             }),
             order: None,
+            inverse_order: None,
         };
         let name_ascending = source
             .create_sorted_view(

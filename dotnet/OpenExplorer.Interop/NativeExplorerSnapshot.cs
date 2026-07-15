@@ -31,6 +31,19 @@ public sealed class NativeExplorerSnapshot : IExplorerSnapshot
         }
     }
 
+    public bool TryGetIndexByItemId(ulong itemId, out ulong index)
+    {
+        ThrowIfDisposed();
+        uint status = NativeMethods.SnapshotFindItemIndex(handle.DangerousGetHandle(), itemId, out index);
+        if (status == (uint)NativeStatus.NotFound)
+        {
+            index = 0;
+            return false;
+        }
+        NativeStatusExtensions.ThrowIfFailed(status, "fe_snapshot_find_item_index");
+        return true;
+    }
+
     public unsafe ExplorerItemBatch GetRange(ulong start, uint count)
     {
         ThrowIfDisposed();
